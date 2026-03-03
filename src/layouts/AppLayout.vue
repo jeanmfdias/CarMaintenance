@@ -13,14 +13,32 @@
   <v-navigation-drawer v-model="drawer" temporary>
     <v-list nav>
       <v-list-item
+        prepend-icon="mdi-view-dashboard-outline"
+        :title="t('nav.dashboard')"
+        :to="{ name: 'dashboard' }"
+        rounded="lg"
+      />
+      <v-list-item
         prepend-icon="mdi-car-multiple"
         :title="t('nav.vehicles')"
         :to="{ name: 'vehicle-list' }"
         rounded="lg"
       />
+      <v-list-item
+        prepend-icon="mdi-store-outline"
+        :title="t('nav.providers')"
+        :to="{ name: 'provider-list' }"
+        rounded="lg"
+      />
     </v-list>
     <template #append>
       <v-list nav>
+        <v-list-item
+          prepend-icon="mdi-cog-outline"
+          :title="t('nav.settings')"
+          :to="{ name: 'settings' }"
+          rounded="lg"
+        />
         <v-list-item
           prepend-icon="mdi-logout"
           :title="t('nav.signOut')"
@@ -36,6 +54,15 @@
       <router-view />
     </v-container>
   </v-main>
+
+  <v-snackbar
+    v-model="snackbar.visible"
+    :color="snackbar.color"
+    :timeout="3000"
+    location="bottom right"
+  >
+    {{ snackbar.message }}
+  </v-snackbar>
 </template>
 
 <script setup lang="ts">
@@ -43,6 +70,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth.store'
+import { snackbar } from '@/composables/useSnackbar'
 
 const { t } = useI18n()
 const router = useRouter()

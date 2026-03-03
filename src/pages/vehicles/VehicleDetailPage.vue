@@ -1,12 +1,17 @@
 <template>
   <div>
+    <!-- Header -->
     <div class="d-flex align-center mb-4">
       <v-btn icon variant="text" :to="{ name: 'vehicle-list' }">
         <v-icon>mdi-arrow-left</v-icon>
       </v-btn>
-      <h1 class="text-h5 ml-2">
-        {{ vehicle ? `${vehicle.make} ${vehicle.model}` : '' }}
-      </h1>
+      <div class="ml-2">
+        <h1 class="text-h5">{{ vehicle ? `${vehicle.make} ${vehicle.model}` : '' }}</h1>
+        <div v-if="vehicle" class="text-caption text-medium-emphasis">
+          {{ vehicle.manufacture_year }} · {{ t(`vehicles.fuelTypes.${vehicle.fuel_type}`) }}
+          · {{ vehicle.current_odometer.toLocaleString() }} km
+        </div>
+      </div>
       <v-spacer />
       <v-btn
         v-if="vehicle"
@@ -18,60 +23,58 @@
       </v-btn>
     </div>
 
-    <v-alert v-if="!vehicle" type="warning" variant="tonal">
+    <v-alert v-if="!vehicle && !store.loading" type="warning" variant="tonal">
       Vehicle not found.
     </v-alert>
 
-    <template v-else>
-      <v-card class="mb-4">
-        <v-card-text>
-          <v-row dense>
-            <v-col cols="6" sm="3">
-              <div class="text-caption text-medium-emphasis">{{ t('vehicles.fields.make') }}</div>
-              <div class="text-body-2">{{ vehicle.make }}</div>
-            </v-col>
-            <v-col cols="6" sm="3">
-              <div class="text-caption text-medium-emphasis">{{ t('vehicles.fields.model') }}</div>
-              <div class="text-body-2">{{ vehicle.model }}</div>
-            </v-col>
-            <v-col cols="6" sm="3">
-              <div class="text-caption text-medium-emphasis">{{ t('vehicles.fields.manufactureYear') }}</div>
-              <div class="text-body-2">{{ vehicle.manufacture_year }}</div>
-            </v-col>
-            <v-col cols="6" sm="3">
-              <div class="text-caption text-medium-emphasis">{{ t('vehicles.fields.modelYear') }}</div>
-              <div class="text-body-2">{{ vehicle.model_year }}</div>
-            </v-col>
-            <v-col cols="6" sm="3">
-              <div class="text-caption text-medium-emphasis">{{ t('vehicles.fields.fuelType') }}</div>
-              <div class="text-body-2">{{ t(`vehicles.fuelTypes.${vehicle.fuel_type}`) }}</div>
-            </v-col>
-            <v-col cols="6" sm="3">
-              <div class="text-caption text-medium-emphasis">{{ t('vehicles.fields.currentOdometer') }}</div>
-              <div class="text-body-2">{{ vehicle.current_odometer.toLocaleString() }} km</div>
-            </v-col>
-          </v-row>
-        </v-card-text>
-      </v-card>
+    <template v-if="vehicle">
+      <v-tabs v-model="tab" class="mb-4">
+        <v-tab value="overview">{{ t('vehicleDetail.tabs.overview') }}</v-tab>
+        <v-tab value="maintenance">{{ t('vehicleDetail.tabs.maintenance') }}</v-tab>
+        <v-tab value="fuel">{{ t('vehicleDetail.tabs.fuel') }}</v-tab>
+        <v-tab value="odometer">{{ t('vehicleDetail.tabs.odometer') }}</v-tab>
+        <v-tab value="insurance">{{ t('vehicleDetail.tabs.insurance') }}</v-tab>
+      </v-tabs>
 
-      <v-alert type="info" variant="tonal">
-        Maintenance records, fuel log, insurance, and odometer history will appear here in Phase 2.
-      </v-alert>
+      <v-window v-model="tab">
+        <v-window-item value="overview">
+          <OverviewTab :vehicle-id="vehicleId" :vehicle="vehicle" />
+        </v-window-item>
+        <v-window-item value="maintenance">
+          <MaintenanceTab :vehicle-id="vehicleId" />
+        </v-window-item>
+        <v-window-item value="fuel">
+          <FuelTab :vehicle-id="vehicleId" />
+        </v-window-item>
+        <v-window-item value="odometer">
+          <OdometerTab :vehicle-id="vehicleId" />
+        </v-window-item>
+        <v-window-item value="insurance">
+          <InsuranceTab :vehicle-id="vehicleId" />
+        </v-window-item>
+      </v-window>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import OverviewTab from '@/components/vehicles/OverviewTab.vue'
+import MaintenanceTab from '@/components/maintenance/MaintenanceTab.vue'
+import FuelTab from '@/components/fuel/FuelTab.vue'
+import OdometerTab from '@/components/odometer/OdometerTab.vue'
+import InsuranceTab from '@/components/insurance/InsuranceTab.vue'
 
 const { t } = useI18n()
 const route = useRoute()
 const store = useVehiclesStore()
 
-const vehicle = computed(() => store.vehicles.find((v) => v.id === (route.params.id as string)))
+const tab = ref('overview')
+const vehicleId = computed(() => route.params.id as string)
+const vehicle = computed(() => store.vehicles.find((v) => v.id === vehicleId.value))
 
 onMounted(() => {
   if (store.vehicles.length === 0) store.fetchAll()

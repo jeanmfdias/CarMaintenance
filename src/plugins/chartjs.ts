@@ -1,0 +1,30 @@
+import {
+  Chart,
+  ArcElement,
+  BarElement,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  PieController,
+  BarController,
+  LineController,
+  Tooltip,
+  Legend,
+  Title,
+} from 'chart.js'
+
+Chart.register(
+  ArcElement,
+  BarElement,
+  LineElement,
+  PointElement,
+  CategoryScale,
+  LinearScale,
+  PieController,
+  BarController,
+  LineController,
+  Tooltip,
+  Legend,
+  Title,
+)

@@ -43,6 +43,21 @@ const router = createRouter({
           name: 'vehicle-edit',
           component: () => import('@/pages/vehicles/VehicleFormPage.vue'),
         },
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/pages/dashboard/DashboardPage.vue'),
+        },
+        {
+          path: 'providers',
+          name: 'provider-list',
+          component: () => import('@/pages/providers/ProvidersPage.vue'),
+        },
+        {
+          path: 'settings',
+          name: 'settings',
+          component: () => import('@/pages/settings/SettingsPage.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

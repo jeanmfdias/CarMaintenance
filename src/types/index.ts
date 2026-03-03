@@ -115,3 +115,18 @@ export interface UserSettings {
   created_at: string
   updated_at: string
 }
+
+export type MaintenanceRecordInsert = Omit<MaintenanceRecord, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'reminder_sent'>
+export type MaintenanceRecordUpdate = Partial<MaintenanceRecordInsert>
+
+export type FuelFillupInsert = Omit<FuelFillup, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'price_per_liter'>
+export type FuelFillupUpdate = Partial<FuelFillupInsert>
+
+export type OdometerEntryInsert = Omit<OdometerEntry, 'id' | 'user_id' | 'created_at'>
+export type OdometerEntryUpdate = Partial<OdometerEntryInsert>
+
+export type InsurancePolicyInsert = Omit<InsurancePolicy, 'id' | 'user_id' | 'created_at' | 'updated_at' | 'reminder_sent'>
+export type InsurancePolicyUpdate = Partial<InsurancePolicyInsert>
+
+export type ServiceProviderInsert = Omit<ServiceProvider, 'id' | 'user_id' | 'created_at' | 'updated_at'>
+export type ServiceProviderUpdate = Partial<ServiceProviderInsert>
