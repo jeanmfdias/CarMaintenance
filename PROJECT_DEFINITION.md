@@ -1,8 +1,8 @@
 # Car Maintenance — Project Definition
 
-> **Version:** 1.1
+> **Version:** 1.2
 > **Date:** 2026-03-03
-> **Status:** Draft
+> **Status:** Final
 
 ---
 
@@ -227,15 +227,16 @@ The following features were explicitly excluded from the initial version:
 
 ## 16. Open Questions
 
-The following decisions are deferred for the design / development phase:
+All initial open questions have been resolved during the design and development phase:
 
 1. ~~Unit system preference: kilometers vs. miles (per user or per vehicle)?~~ **Resolved: metric (km, L)**
 2. ~~Currency — single currency per account or per record?~~ **Resolved: BRL (R$) only**
-3. Exact email reminder lead times (default values).
-4. Which Vue UI component library to adopt.
-5. PDF/CSV export library selection.
-6. Hosting platform (Vercel, Netlify, Supabase hosting, etc.).
-7. Maximum number of vehicles per free account (if any limit).
+3. ~~Exact email reminder lead times (default values).~~ **Resolved: 30 days default (configurable per record and globally in user settings)**
+4. ~~Which Vue UI component library to adopt.~~ **Resolved: Vuetify 3**
+5. ~~PDF/CSV export library selection.~~ **Resolved: jsPDF + jspdf-autotable (PDF); native Blob download (CSV)**
+6. ~~Email reminders (maintenance + insurance expiry).~~ **Deferred to v2 — requires external email service and scheduled job; excluded from v1 scope**
+7. ~~Maximum number of vehicles per free account (if any limit).~~ **Resolved: no limit**
+8. ~~Hosting platform.~~ **Resolved: Vercel (frontend) + Supabase (database, auth, storage)**
 
 ---
 
