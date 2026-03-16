@@ -198,6 +198,11 @@ export default {
     exportCsv: 'Exportar CSV',
     exportPdf: 'Exportar PDF',
   },
+  serviceUnavailable: {
+    title: 'Serviço indisponível',
+    message: 'Não foi possível conectar aos nossos servidores. Verifique sua conexão com a internet e tente novamente.',
+    retry: 'Tentar novamente',
+  },
   common: {
     save: 'Salvar',
     cancel: 'Cancelar',

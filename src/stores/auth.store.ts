@@ -7,10 +7,31 @@ export const useAuthStore = defineStore('auth', () => {
   const user = ref<User | null>(null)
   const session = ref<Session | null>(null)
   const loading = ref(true)
+  const serviceUnavailable = ref(false)
 
   const isAuthenticated = computed(() => !!user.value)
 
+  async function checkReachability(): Promise<boolean> {
+    try {
+      const url = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`
+      await fetch(url, { signal: AbortSignal.timeout(5000) })
+      return true
+    } catch {
+      return false
+    }
+  }
+
   async function init() {
+    loading.value = true
+    serviceUnavailable.value = false
+
+    const reachable = await checkReachability()
+    if (!reachable) {
+      serviceUnavailable.value = true
+      loading.value = false
+      return
+    }
+
     const { data } = await supabase.auth.getSession()
     session.value = data.session
     user.value = data.session?.user ?? null
@@ -20,6 +41,10 @@ export const useAuthStore = defineStore('auth', () => {
       session.value = newSession
       user.value = newSession?.user ?? null
     })
+  }
+
+  async function retryConnection() {
+    await init()
   }
 
   async function sendMagicLink(email: string) {
@@ -37,5 +62,5 @@ export const useAuthStore = defineStore('auth', () => {
     if (error) throw error
   }
 
-  return { user, session, loading, isAuthenticated, init, sendMagicLink, signOut }
+  return { user, session, loading, serviceUnavailable, isAuthenticated, init, retryConnection, sendMagicLink, signOut }
 })
