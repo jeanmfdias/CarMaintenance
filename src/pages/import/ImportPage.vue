@@ -242,6 +242,11 @@ async function runImport() {
         reminder_lead_days: reminderDays,
       })
     }
+    const maxKm = records.reduce<number | null>(
+      (max, r) => (r.odometer_km != null && (max === null || r.odometer_km > max) ? r.odometer_km : max),
+      null,
+    )
+    await vehiclesStore.syncOdometer(vehicleId, maxKm)
     showSnackbar(t('importLegacy.success', { count: records.length }), 'success')
     clearFile()
     selectedVehicleId.value = null
@@ -256,4 +261,6 @@ onMounted(async () => {
   if (!vehiclesStore.vehicles.length) await vehiclesStore.fetchAll()
   if (!settingsStore.settings) await settingsStore.fetch()
 })
+
+defineExpose({ selectedVehicleId, importResult, runImport })
 </script>
