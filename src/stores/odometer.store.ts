@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from './auth.store'
+import { useVehiclesStore } from './vehicles.store'
 import type { OdometerEntry, OdometerEntryInsert, OdometerEntryUpdate } from '@/types'
 
 export const useOdometerStore = defineStore('odometer', () => {
@@ -37,6 +38,11 @@ export const useOdometerStore = defineStore('odometer', () => {
     if (err) throw err
     const entry = data as OdometerEntry
     entries.value.unshift(entry)
+    const vehiclesStore = useVehiclesStore()
+    const vehicle = vehiclesStore.vehicles.find((v) => v.id === entry.vehicle_id)
+    if (vehicle && entry.reading_km > vehicle.current_odometer) {
+      await vehiclesStore.update(vehicle.id, { current_odometer: entry.reading_km })
+    }
     return entry
   }
 
@@ -51,6 +57,13 @@ export const useOdometerStore = defineStore('odometer', () => {
     const entry = data as OdometerEntry
     const idx = entries.value.findIndex((e) => e.id === id)
     if (idx !== -1) entries.value[idx] = entry
+    if (payload.reading_km !== undefined) {
+      const vehiclesStore = useVehiclesStore()
+      const vehicle = vehiclesStore.vehicles.find((v) => v.id === entry.vehicle_id)
+      if (vehicle && entry.reading_km > vehicle.current_odometer) {
+        await vehiclesStore.update(vehicle.id, { current_odometer: entry.reading_km })
+      }
+    }
     return entry
   }
 
