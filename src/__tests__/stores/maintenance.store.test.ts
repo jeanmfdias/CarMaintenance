@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useMaintenanceStore } from '@/stores/maintenance.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useOdometerStore } from '@/stores/odometer.store'
 import { useAuthStore } from '@/stores/auth.store'
 import type { MaintenanceRecord } from '@/types'
 
@@ -93,6 +94,28 @@ describe('maintenance.store — create', () => {
     const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     await useMaintenanceStore().create({ vehicle_id: 'v1', category: 'oil_change', record_date: '2024-02-01', total_cost: 150, odometer_km: 20000, labor_cost: null, parts_cost: null, notes: null, next_service_date: null, next_service_km: null, reminder_lead_days: 30, service_provider_id: null })
     expect(syncSpy).toHaveBeenCalledWith('v1', 20000)
+  })
+
+  it('creates odometer entry when odometer_km is provided', async () => {
+    const created = makeRecord({ id: 'r1', odometer_km: 15000, record_date: '2024-03-01', vehicle_id: 'v1' })
+    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    const vehiclesStore = useVehiclesStore()
+    vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
+    const odometerStore = useOdometerStore()
+    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as any)
+    await useMaintenanceStore().create({ vehicle_id: 'v1', category: 'oil_change', record_date: '2024-03-01', total_cost: 100, odometer_km: 15000, labor_cost: null, parts_cost: null, notes: null, next_service_date: null, next_service_km: null, reminder_lead_days: 30, service_provider_id: null })
+    expect(createSpy).toHaveBeenCalledWith({ vehicle_id: 'v1', reading_km: 15000, reading_date: '2024-03-01', notes: null })
+  })
+
+  it('does not create odometer entry when odometer_km is null', async () => {
+    const created = makeRecord({ id: 'r1', odometer_km: null })
+    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    const vehiclesStore = useVehiclesStore()
+    vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
+    const odometerStore = useOdometerStore()
+    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as any)
+    await useMaintenanceStore().create({ vehicle_id: 'v1', category: 'oil_change', record_date: '2024-03-01', total_cost: 100, odometer_km: null, labor_cost: null, parts_cost: null, notes: null, next_service_date: null, next_service_km: null, reminder_lead_days: 30, service_provider_id: null })
+    expect(createSpy).not.toHaveBeenCalled()
   })
 
   it('throws on error', async () => {

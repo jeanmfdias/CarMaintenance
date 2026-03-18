@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from './auth.store'
 import { useVehiclesStore } from './vehicles.store'
+import { useOdometerStore } from './odometer.store'
 import type { MaintenanceRecord, MaintenanceRecordInsert, MaintenanceRecordUpdate } from '@/types'
 
 export const useMaintenanceStore = defineStore('maintenance', () => {
@@ -39,6 +40,14 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     const record = data as MaintenanceRecord
     records.value.unshift(record)
     await useVehiclesStore().syncOdometer(record.vehicle_id, record.odometer_km)
+    if (record.odometer_km != null) {
+      await useOdometerStore().create({
+        vehicle_id: record.vehicle_id,
+        reading_km: record.odometer_km,
+        reading_date: record.record_date,
+        notes: null,
+      })
+    }
     return record
   }
 

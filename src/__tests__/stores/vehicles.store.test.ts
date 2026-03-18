@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useOdometerStore } from '@/stores/odometer.store'
 import { useAuthStore } from '@/stores/auth.store'
 import type { Vehicle } from '@/types'
 
@@ -115,6 +116,32 @@ describe('vehicles.store — create', () => {
     await store.create({ make: 'Honda', model: 'Civic', manufacture_year: 2021, model_year: 2021, fuel_type: 'gasoline', current_odometer: 0, purchase_date: null, sell_date: null, photo_url: null, notes: null })
     expect(store.vehicles[0]).toEqual(created)
     expect(store.vehicles[1]).toEqual(existing)
+  })
+
+  it('creates odometer entry when current_odometer > 0 and purchase_date is set', async () => {
+    const created = makeVehicle({ id: 'v1', current_odometer: 50000, purchase_date: '2020-01-01' })
+    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    const odometerStore = useOdometerStore()
+    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as any)
+    const store = useVehiclesStore()
+    await store.create({ make: 'Toyota', model: 'Corolla', manufacture_year: 2020, model_year: 2020, fuel_type: 'gasoline', current_odometer: 50000, purchase_date: '2020-01-01', sell_date: null, photo_url: null, notes: null })
+    expect(createSpy).toHaveBeenCalledWith({ vehicle_id: 'v1', reading_km: 50000, reading_date: '2020-01-01', notes: null })
+  })
+
+  it('does not create odometer entry when current_odometer is 0', async () => {
+    const created = makeVehicle({ id: 'v1', current_odometer: 0, purchase_date: '2020-01-01' })
+    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
+    await useVehiclesStore().create({ make: 'Toyota', model: 'Corolla', manufacture_year: 2020, model_year: 2020, fuel_type: 'gasoline', current_odometer: 0, purchase_date: '2020-01-01', sell_date: null, photo_url: null, notes: null })
+    expect(createSpy).not.toHaveBeenCalled()
+  })
+
+  it('does not create odometer entry when purchase_date is null', async () => {
+    const created = makeVehicle({ id: 'v1', current_odometer: 50000, purchase_date: null })
+    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
+    await useVehiclesStore().create({ make: 'Toyota', model: 'Corolla', manufacture_year: 2020, model_year: 2020, fuel_type: 'gasoline', current_odometer: 50000, purchase_date: null, sell_date: null, photo_url: null, notes: null })
+    expect(createSpy).not.toHaveBeenCalled()
   })
 
   it('throws on error', async () => {

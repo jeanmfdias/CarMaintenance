@@ -39,6 +39,15 @@ export const useVehiclesStore = defineStore('vehicles', () => {
     if (err) throw err
     const vehicle = data as Vehicle
     vehicles.value.unshift(vehicle)
+    if (vehicle.current_odometer > 0 && vehicle.purchase_date) {
+      const { useOdometerStore } = await import('./odometer.store')
+      await useOdometerStore().create({
+        vehicle_id: vehicle.id,
+        reading_km: vehicle.current_odometer,
+        reading_date: vehicle.purchase_date,
+        notes: null,
+      })
+    }
     return vehicle
   }
 

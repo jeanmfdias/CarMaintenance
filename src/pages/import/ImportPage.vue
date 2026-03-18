@@ -132,6 +132,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useMaintenanceStore } from '@/stores/maintenance.store'
+import { useOdometerStore } from '@/stores/odometer.store'
 import { useSettingsStore } from '@/stores/settings.store'
 import { showSnackbar } from '@/composables/useSnackbar'
 import { parseMaintenanceCsv } from '@/utils/importData'
@@ -140,6 +141,7 @@ import type { ImportResult, ImportError } from '@/utils/importData'
 const { t } = useI18n()
 const vehiclesStore = useVehiclesStore()
 const maintenanceStore = useMaintenanceStore()
+const odometerStore = useOdometerStore()
 const settingsStore = useSettingsStore()
 
 const selectedVehicleId = ref<string | null>(null)
@@ -242,6 +244,21 @@ async function runImport() {
         reminder_lead_days: reminderDays,
       })
     }
+    // Create odometer entries — one per unique date, highest km wins, skip dates already in DB
+    const kmByDate = new Map<string, number>()
+    for (const rec of records) {
+      if (rec.odometer_km == null) continue
+      const prev = kmByDate.get(rec.record_date)
+      if (prev === undefined || rec.odometer_km > prev) kmByDate.set(rec.record_date, rec.odometer_km)
+    }
+    await odometerStore.fetchByVehicle(vehicleId)
+    const existingDates = new Set(odometerStore.entries.map((e) => e.reading_date))
+    for (const [date, km] of kmByDate) {
+      if (!existingDates.has(date)) {
+        await odometerStore.create({ vehicle_id: vehicleId, reading_km: km, reading_date: date, notes: null })
+      }
+    }
+
     const maxKm = records.reduce<number | null>(
       (max, r) => (r.odometer_km != null && (max === null || r.odometer_km > max) ? r.odometer_km : max),
       null,
@@ -262,5 +279,5 @@ onMounted(async () => {
   if (!settingsStore.settings) await settingsStore.fetch()
 })
 
-defineExpose({ selectedVehicleId, importResult, runImport })
+defineExpose({ selectedVehicleId, importResult, runImport, odometerStore })
 </script>
