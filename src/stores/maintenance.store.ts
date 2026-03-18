@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from './auth.store'
+import { useVehiclesStore } from './vehicles.store'
 import type { MaintenanceRecord, MaintenanceRecordInsert, MaintenanceRecordUpdate } from '@/types'
 
 export const useMaintenanceStore = defineStore('maintenance', () => {
@@ -37,6 +38,7 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     if (err) throw err
     const record = data as MaintenanceRecord
     records.value.unshift(record)
+    await useVehiclesStore().syncOdometer(record.vehicle_id, record.odometer_km)
     return record
   }
 
@@ -51,6 +53,9 @@ export const useMaintenanceStore = defineStore('maintenance', () => {
     const record = data as MaintenanceRecord
     const idx = records.value.findIndex((r) => r.id === id)
     if (idx !== -1) records.value[idx] = record
+    if (payload.odometer_km !== undefined) {
+      await useVehiclesStore().syncOdometer(record.vehicle_id, record.odometer_km)
+    }
     return record
   }
 

@@ -85,6 +85,14 @@ export const useVehiclesStore = defineStore('vehicles', () => {
     return data.signedUrl
   }
 
+  async function syncOdometer(vehicleId: string, km: number | null): Promise<void> {
+    if (km === null) return
+    const vehicle = vehicles.value.find((v) => v.id === vehicleId)
+    if (vehicle && km > vehicle.current_odometer) {
+      await update(vehicle.id, { current_odometer: km })
+    }
+  }
+
   return {
     vehicles,
     loading,
@@ -98,5 +106,6 @@ export const useVehiclesStore = defineStore('vehicles', () => {
     archive,
     uploadPhoto,
     getPhotoUrl,
+    syncOdometer,
   }
 })

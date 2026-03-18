@@ -70,40 +70,19 @@ describe('odometer.store — create', () => {
     vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
     const vehiclesStore = useVehiclesStore()
     vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 45000 } as any]
-    vi.spyOn(vehiclesStore, 'update').mockResolvedValue({ id: 'v1', current_odometer: 55000 } as any)
+    vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     await store.create({ vehicle_id: 'v1', reading_km: 55000, reading_date: '2024-06-01', notes: null })
     expect(store.entries[0]).toEqual(created)
     expect(store.entries[1]).toEqual(existing)
   })
 
-  it('updates vehicle current_odometer when new reading is higher', async () => {
+  it('calls syncOdometer with vehicle_id and reading_km', async () => {
     const created = makeEntry({ id: 'e2', reading_km: 60000 })
     vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
     const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
-    const updateSpy = vi.spyOn(vehiclesStore, 'update').mockResolvedValue({ id: 'v1', current_odometer: 60000 } as any)
+    const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     await useOdometerStore().create({ vehicle_id: 'v1', reading_km: 60000, reading_date: '2024-06-01', notes: null })
-    expect(updateSpy).toHaveBeenCalledWith('v1', { current_odometer: 60000 })
-  })
-
-  it('does not update vehicle current_odometer when new reading is lower', async () => {
-    const created = makeEntry({ id: 'e2', reading_km: 40000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
-    const updateSpy = vi.spyOn(vehiclesStore, 'update').mockResolvedValue({} as any)
-    await useOdometerStore().create({ vehicle_id: 'v1', reading_km: 40000, reading_date: '2024-06-01', notes: null })
-    expect(updateSpy).not.toHaveBeenCalled()
-  })
-
-  it('does not update vehicle current_odometer when vehicle is not loaded', async () => {
-    const created = makeEntry({ id: 'e2', reading_km: 60000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [] // vehicle not in store
-    const updateSpy = vi.spyOn(vehiclesStore, 'update').mockResolvedValue({} as any)
-    await useOdometerStore().create({ vehicle_id: 'v1', reading_km: 60000, reading_date: '2024-06-01', notes: null })
-    expect(updateSpy).not.toHaveBeenCalled()
+    expect(syncSpy).toHaveBeenCalledWith('v1', 60000)
   })
 })
 
@@ -116,45 +95,31 @@ describe('odometer.store — update', () => {
     vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
     const vehiclesStore = useVehiclesStore()
     vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
-    vi.spyOn(vehiclesStore, 'update').mockResolvedValue({} as any)
+    vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     await store.update('e1', { reading_km: 51000 })
     expect(store.entries[0]!.reading_km).toBe(51000)
   })
 
-  it('updates vehicle current_odometer when edited reading is higher', async () => {
+  it('calls syncOdometer when reading_km is in payload', async () => {
     const updated = makeEntry({ id: 'e1', reading_km: 55000 })
     vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
     const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
-    const updateSpy = vi.spyOn(vehiclesStore, 'update').mockResolvedValue({} as any)
+    const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     const store = useOdometerStore()
     store.entries = [makeEntry({ id: 'e1' })]
     await store.update('e1', { reading_km: 55000 })
-    expect(updateSpy).toHaveBeenCalledWith('v1', { current_odometer: 55000 })
+    expect(syncSpy).toHaveBeenCalledWith('v1', 55000)
   })
 
-  it('does not update vehicle current_odometer when edited reading is lower', async () => {
-    const updated = makeEntry({ id: 'e1', reading_km: 45000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
-    const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
-    const updateSpy = vi.spyOn(vehiclesStore, 'update').mockResolvedValue({} as any)
-    const store = useOdometerStore()
-    store.entries = [makeEntry({ id: 'e1' })]
-    await store.update('e1', { reading_km: 45000 })
-    expect(updateSpy).not.toHaveBeenCalled()
-  })
-
-  it('does not update vehicle current_odometer when reading_km is not in payload', async () => {
+  it('does not call syncOdometer when reading_km is not in payload', async () => {
     const updated = makeEntry({ id: 'e1', notes: 'updated note' })
     vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
     const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
-    const updateSpy = vi.spyOn(vehiclesStore, 'update').mockResolvedValue({} as any)
+    const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     const store = useOdometerStore()
     store.entries = [makeEntry({ id: 'e1' })]
     await store.update('e1', { notes: 'updated note' })
-    expect(updateSpy).not.toHaveBeenCalled()
+    expect(syncSpy).not.toHaveBeenCalled()
   })
 })
 
