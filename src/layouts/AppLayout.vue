@@ -30,6 +30,12 @@
         :to="{ name: 'provider-list' }"
         rounded="lg"
       />
+      <v-list-item
+        prepend-icon="mdi-database-import-outline"
+        :title="t('nav.importLegacy')"
+        :to="{ name: 'import-legacy' }"
+        rounded="lg"
+      />
     </v-list>
     <template #append>
       <v-list nav>

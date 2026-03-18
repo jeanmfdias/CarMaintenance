@@ -1,6 +1,6 @@
 # Car Maintenance — Project Definition
 
-> **Version:** 1.2
+> **Version:** 1.3
 > **Date:** 2026-03-03
 > **Status:** Final
 
@@ -237,6 +237,47 @@ All initial open questions have been resolved during the design and development 
 6. ~~Email reminders (maintenance + insurance expiry).~~ **Deferred to v2 — requires external email service and scheduled job; excluded from v1 scope**
 7. ~~Maximum number of vehicles per free account (if any limit).~~ **Resolved: no limit**
 8. ~~Hosting platform.~~ **Resolved: Vercel (frontend) + Supabase (database, auth, storage)**
+
+---
+
+## 17. Legacy Data Import
+
+- A dedicated **Import Legacy Data** page (accessible from the main navigation) allows users to bulk-import historical maintenance records from a CSV file.
+- The import creates **MaintenanceRecord** entries for all supported types, including insurance costs.
+
+### 17.1 CSV format
+
+The file must contain the following columns **in order** (header row required):
+
+| Column | Description |
+|--------|-------------|
+| date | Service date — ISO (`YYYY-MM-DD`) or BR (`DD/MM/YYYY`) |
+| description | Free-text description; stored as the record's notes |
+| type | Service type — see mapping below |
+| km | Odometer reading at service time (optional) |
+| value | Total cost in BRL — supports `1.234,56` and `1234.56` formats |
+
+- Delimiter: comma (`,`) or semicolon (`;`) — auto-detected.
+- Quoted fields are supported.
+
+### 17.2 Service type mapping
+
+| CSV type | Maintenance category |
+|----------|----------------------|
+| accessories | Accessories |
+| fix | General Repair |
+| taxes | Taxes & Fees |
+| labor | Labor |
+| preventive | Scheduled Service |
+| insurance | Insurance |
+
+### 17.3 Import workflow
+
+1. User selects the target vehicle from a dropdown.
+2. User selects a `.csv` file — the file is parsed immediately in the browser (no upload).
+3. A preview table shows all rows: valid rows in normal style, error rows highlighted with the error message.
+4. User clicks **Import** — valid records are saved one by one via the maintenance store; error rows are skipped.
+5. On completion a success message is shown and the form resets for another import.
 
 ---
 

@@ -27,6 +27,7 @@ Core features implemented:
 - [x] Service providers directory
 - [x] Per-vehicle dashboard with charts
 - [x] Data export (PDF and CSV)
+- [x] Legacy data import (CSV)
 - [x] User settings (language)
 - [x] PWA support
 

@@ -54,6 +54,11 @@ const router = createRouter({
           component: () => import('@/pages/providers/ProvidersPage.vue'),
         },
         {
+          path: 'import',
+          name: 'import-legacy',
+          component: () => import('@/pages/import/ImportPage.vue'),
+        },
+        {
           path: 'settings',
           name: 'settings',
           component: () => import('@/pages/settings/SettingsPage.vue'),
