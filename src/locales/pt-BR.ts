@@ -73,6 +73,7 @@ export default {
     editRecord: 'Editar registro',
     noRecords: 'Nenhum registro de manutenção ainda.',
     deleteConfirm: 'Excluir este registro de manutenção?',
+    recordCount: 'Total de registros',
     fields: {
       category: 'Categoria',
       date: 'Data',

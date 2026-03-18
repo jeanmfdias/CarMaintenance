@@ -73,6 +73,7 @@ export default {
     editRecord: 'Edit record',
     noRecords: 'No maintenance records yet.',
     deleteConfirm: 'Delete this maintenance record?',
+    recordCount: 'Records total',
     fields: {
       category: 'Category',
       date: 'Date',
