@@ -72,3 +72,18 @@ npm run build
 # Preview the production build locally
 npm run preview
 ```
+
+## Build to Production
+
+### Build — pass your Supabase credentials as build args
+```bash
+docker build \
+  --build-arg VITE_SUPABASE_URL=https://your-project.supabase.co \
+  --build-arg VITE_SUPABASE_ANON_KEY=your-anon-key \
+  -t carmaintenance .
+
+# Run
+docker run -p 8080:80 carmaintenance
+````
+
+
