@@ -121,6 +121,7 @@ export default {
     efficiency: {
       kmPerLiter: 'km/L',
       litersPer100km: 'L/100km',
+      average: 'Avg. efficiency',
     },
   },
   odometer: {

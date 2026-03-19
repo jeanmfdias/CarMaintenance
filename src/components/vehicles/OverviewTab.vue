@@ -130,6 +130,7 @@ import { Pie, Bar, Line } from 'vue-chartjs'
 import { useMaintenanceStore } from '@/stores/maintenance.store'
 import { useFuelStore } from '@/stores/fuel.store'
 import { useInsuranceStore } from '@/stores/insurance.store'
+import { useOdometerStore } from '@/stores/odometer.store'
 import { useFuelEfficiency } from '@/composables/useFuelEfficiency'
 import { CATEGORY_ICONS, CATEGORY_COLORS } from '@/utils/maintenanceCategories'
 import { exportMaintenanceCsv, exportVehicleReport } from '@/utils/exportData'
@@ -142,6 +143,7 @@ const { t } = useI18n()
 const maintenanceStore = useMaintenanceStore()
 const fuelStore = useFuelStore()
 const insuranceStore = useInsuranceStore()
+const odometerStore = useOdometerStore()
 
 const loading = ref(false)
 
@@ -151,6 +153,7 @@ onMounted(async () => {
     maintenanceStore.fetchByVehicle(props.vehicleId),
     fuelStore.fetchByVehicle(props.vehicleId),
     insuranceStore.fetchByVehicle(props.vehicleId),
+    odometerStore.fetchByVehicle(props.vehicleId),
   ])
   loading.value = false
 })
@@ -165,9 +168,14 @@ const totalMaintenanceCost = computed(() =>
 const totalFuelCost = computed(() =>
   fuelStore.fillups.reduce((s, f) => s + f.total_cost, 0),
 )
+const kmUsed = computed(() => {
+  const readings = odometerStore.entries.map((e) => e.reading_km)
+  if (readings.length < 2) return null
+  return Math.max(...readings) - Math.min(...readings)
+})
 const costPerKm = computed(() => {
   const total = totalMaintenanceCost.value + totalFuelCost.value
-  const km = props.vehicle.current_odometer
+  const km = kmUsed.value
   if (!total || !km) return null
   return total / km
 })
