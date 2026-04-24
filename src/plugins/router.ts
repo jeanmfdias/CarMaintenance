@@ -2,8 +2,18 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
 import { useAuthStore } from '@/stores/auth.store'
 
+function detectBasePath(): string {
+  const re = /^https?:\/\/[^/]+(\/.*?\/)assets\//
+  const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]'))
+  for (const s of scripts) {
+    const match = re.exec(s.src)
+    if (match) return match[1]
+  }
+  return '/'
+}
+
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHistory(detectBasePath()),
   routes: [
     {
       path: '/login',
