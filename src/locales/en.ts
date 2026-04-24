@@ -17,6 +17,13 @@ export default {
     sendLink: 'Send magic link',
     linkSent: 'Check your email!',
     linkSentDesc: 'A login link was sent to {email}. It expires in 60 minutes.',
+    signingIn: 'Signing you in...',
+    callbackError: {
+      title: 'Login link issue',
+      expired: 'This login link has expired or is no longer valid. Please request a new one.',
+      generic: 'We could not sign you in. Please request a new login link.',
+      backToLogin: 'Back to login',
+    },
   },
   vehicles: {
     title: 'My Vehicles',

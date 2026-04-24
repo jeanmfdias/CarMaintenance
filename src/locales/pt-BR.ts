@@ -17,6 +17,13 @@ export default {
     sendLink: 'Enviar magic link',
     linkSent: 'Verifique seu e-mail!',
     linkSentDesc: 'Um link de acesso foi enviado para {email}. Ele expira em 60 minutos.',
+    signingIn: 'Entrando...',
+    callbackError: {
+      title: 'Problema com o link de acesso',
+      expired: 'Este link de acesso expirou ou não é mais válido. Solicite um novo link.',
+      generic: 'Não foi possível entrar. Solicite um novo link de acesso.',
+      backToLogin: 'Voltar para o login',
+    },
   },
   vehicles: {
     title: 'Meus Veículos',
