@@ -7,7 +7,7 @@ function detectBasePath(): string {
   const scripts = Array.from(document.querySelectorAll<HTMLScriptElement>('script[src]'))
   for (const s of scripts) {
     const match = re.exec(s.src)
-    if (match) return match[1]
+    if (match?.[1]) return match[1]
   }
   return '/'
 }
