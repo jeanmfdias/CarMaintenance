@@ -2,6 +2,8 @@ import { defineStore } from 'pinia'
 import { ref } from 'vue'
 import { supabase } from '@/lib/supabase'
 import { useAuthStore } from './auth.store'
+import { useVehiclesStore } from './vehicles.store'
+import { useOdometerStore } from './odometer.store'
 import type { FuelFillup, FuelFillupInsert, FuelFillupUpdate } from '@/types'
 
 export const useFuelStore = defineStore('fuel', () => {
@@ -43,6 +45,13 @@ export const useFuelStore = defineStore('fuel', () => {
     } else {
       fillups.value.splice(idx, 0, fillup)
     }
+    await useVehiclesStore().syncOdometer(fillup.vehicle_id, fillup.odometer_km)
+    await useOdometerStore().create({
+      vehicle_id: fillup.vehicle_id,
+      reading_km: fillup.odometer_km,
+      reading_date: fillup.fillup_date,
+      notes: null,
+    })
     return fillup
   }
 
@@ -59,6 +68,15 @@ export const useFuelStore = defineStore('fuel', () => {
     if (idx !== -1) fillups.value[idx] = fillup
     // Re-sort by odometer after update
     fillups.value.sort((a, b) => a.odometer_km - b.odometer_km)
+    if (payload.odometer_km !== undefined) {
+      await useVehiclesStore().syncOdometer(fillup.vehicle_id, fillup.odometer_km)
+      await useOdometerStore().create({
+        vehicle_id: fillup.vehicle_id,
+        reading_km: fillup.odometer_km,
+        reading_date: fillup.fillup_date,
+        notes: null,
+      })
+    }
     return fillup
   }
 
