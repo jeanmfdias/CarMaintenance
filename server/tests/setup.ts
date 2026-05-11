@@ -8,6 +8,7 @@ process.env.JWT_SECRET = 'test-secret'
 process.env.PUBLIC_APP_URL = 'http://localhost:5173'
 process.env.CORS_ORIGIN = 'http://localhost:5173'
 process.env.DATABASE_PATH = ':memory:'
+process.env.SMTP_HOST = ''
 
 beforeEach(() => {
   _resetDbForTests()
