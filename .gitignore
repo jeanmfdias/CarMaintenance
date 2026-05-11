@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.claude/
+
+# Local backup snapshots produced by `make backup`
+backups/

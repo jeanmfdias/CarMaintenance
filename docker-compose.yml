@@ -1,0 +1,68 @@
+services:
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        # Build-time vars consumed by Vite. The frontend talks to the backend
+        # through the proxy, so the API base path is relative.
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api/v1}
+        # Legacy — kept until the Supabase client is removed from the frontend.
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
+    image: carmaintenance-frontend:local
+    container_name: carm_frontend
+    restart: unless-stopped
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    image: carmaintenance-backend:local
+    container_name: carm_backend
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    environment:
+      # Force container-side defaults regardless of what the .env says.
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_PATH: /app/data/app.db
+      UPLOADS_DIR: /app/data/uploads
+    volumes:
+      - ./server/data:/app/data
+    expose:
+      - "3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  proxy:
+    image: nginx:stable-alpine
+    container_name: carm_proxy
+    restart: unless-stopped
+    depends_on:
+      - frontend
+      - backend
+    ports:
+      - "${PROXY_PORT:-8080}:80"
+    volumes:
+      - ./infra/proxy.conf:/etc/nginx/conf.d/default.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
