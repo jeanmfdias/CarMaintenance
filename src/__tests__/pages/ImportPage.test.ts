@@ -11,8 +11,12 @@ import en from '@/locales/en'
 import type { ImportResult } from '@/utils/importData'
 import type { OdometerEntry } from '@/types'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: { from: vi.fn(), storage: { from: vi.fn() } },
+vi.mock('@/lib/api', () => ({
+  api: {
+    vehicles: { list: vi.fn(), uploadPhoto: vi.fn(), removePhoto: vi.fn() },
+    odometer: { listByVehicle: vi.fn(), create: vi.fn(), remove: vi.fn() },
+    maintenance: { listByVehicle: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+  },
 }))
 
 vi.mock('@/composables/useSnackbar', () => ({

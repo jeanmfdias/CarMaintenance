@@ -89,18 +89,16 @@ onMounted(async () => {
   loading.value = true
   if (vehiclesStore.vehicles.length === 0) await vehiclesStore.fetchAll()
 
-  // Fetch data for all vehicles in parallel
+  // Fetch data for all vehicles in parallel via the API client.
+  const { api } = await import('@/lib/api')
   await Promise.all(
     vehiclesStore.vehicles.map(async (v) => {
-      // Use store fetch — stores hold last-fetched vehicle data
-      // For global dashboard we re-query directly
-      const { supabase } = await import('@/lib/supabase')
-      const [mRes, fRes] = await Promise.all([
-        supabase.from('maintenance_records').select('*').eq('vehicle_id', v.id),
-        supabase.from('fuel_fillups').select('*').eq('vehicle_id', v.id),
+      const [records, fillups] = await Promise.all([
+        api.maintenance.listByVehicle(v.id),
+        api.fuel.listByVehicle(v.id),
       ])
-      maintenanceByVehicle.value[v.id] = (mRes.data ?? []) as typeof maintenanceStore.records
-      fuelByVehicle.value[v.id] = (fRes.data ?? []) as typeof fuelStore.fillups
+      maintenanceByVehicle.value[v.id] = records as typeof maintenanceStore.records
+      fuelByVehicle.value[v.id] = fillups as typeof fuelStore.fillups
     }),
   )
   loading.value = false

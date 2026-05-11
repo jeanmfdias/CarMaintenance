@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from '@/lib/supabase'
-import { useAuthStore } from './auth.store'
+import { api } from '@/lib/api'
 import { i18n } from '@/plugins/i18n'
 import type { UserSettings } from '@/types'
 
@@ -11,19 +10,13 @@ export const useSettingsStore = defineStore('settings', () => {
   const error = ref<string | null>(null)
 
   async function fetch() {
-    const auth = useAuthStore()
     loading.value = true
     error.value = null
     try {
-      const { data, error: err } = await supabase
-        .from('user_settings')
-        .select('*')
-        .eq('user_id', auth.user!.id)
-        .maybeSingle()
-      if (err) throw err
-      settings.value = data as UserSettings | null
-      if (settings.value?.locale) {
-        i18n.global.locale.value = settings.value.locale
+      const data = await api.settings.get()
+      settings.value = data
+      if (data?.locale) {
+        i18n.global.locale.value = data.locale
       }
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
@@ -33,14 +26,8 @@ export const useSettingsStore = defineStore('settings', () => {
   }
 
   async function save(payload: Partial<Pick<UserSettings, 'locale' | 'default_reminder_lead_days'>>) {
-    const auth = useAuthStore()
-    const { data, error: err } = await supabase
-      .from('user_settings')
-      .upsert({ ...payload, user_id: auth.user!.id }, { onConflict: 'user_id' })
-      .select()
-      .single()
-    if (err) throw err
-    settings.value = data as UserSettings
+    const data = await api.settings.update(payload)
+    settings.value = data
     if (payload.locale) {
       i18n.global.locale.value = payload.locale
     }

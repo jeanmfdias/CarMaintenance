@@ -20,48 +20,43 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useAuthStore } from '@/stores/auth.store'
+import { ApiError } from '@/lib/api'
 
 const { t } = useI18n()
 const router = useRouter()
 const auth = useAuthStore()
 
-function parseHashParams(hash: string): Record<string, string> {
-  const params: Record<string, string> = {}
-  const raw = hash.startsWith('#') ? hash.slice(1) : hash
-  for (const part of raw.split('&')) {
-    const [k, v] = part.split('=')
-    if (k) params[decodeURIComponent(k)] = decodeURIComponent(v ?? '')
-  }
-  return params
-}
-
-const hashParams = parseHashParams(window.location.hash)
-const queryParams = new URLSearchParams(window.location.search)
-const errorCode = hashParams['error_code'] ?? queryParams.get('error_code') ?? ''
-const errorParam = hashParams['error'] ?? queryParams.get('error') ?? ''
-const errorDescription = hashParams['error_description'] ?? queryParams.get('error_description') ?? ''
-
 const errorMessage = ref<string>('')
-if (errorCode || errorParam) {
-  errorMessage.value =
-    errorCode === 'otp_expired' || /expired/i.test(errorDescription)
-      ? t('auth.callbackError.expired')
-      : t('auth.callbackError.generic')
+
+function classifyError(message: string): string {
+  if (/expire/i.test(message) || /already been used/i.test(message)) {
+    return t('auth.callbackError.expired')
+  }
+  return t('auth.callbackError.generic')
 }
 
-if (!errorMessage.value) {
-  watch(
-    () => auth.loading,
-    (loading) => {
-      if (!loading) {
-        router.replace(auth.isAuthenticated ? '/vehicles' : '/login')
-      }
-    },
-    { immediate: true },
-  )
-}
+onMounted(async () => {
+  const queryParams = new URLSearchParams(window.location.search)
+  const token = queryParams.get('token')
+
+  if (!token) {
+    errorMessage.value = t('auth.callbackError.missingToken')
+    return
+  }
+
+  try {
+    await auth.verifyMagicLink(token)
+    router.replace({ name: 'vehicle-list' })
+  } catch (e: unknown) {
+    if (e instanceof ApiError) {
+      errorMessage.value = classifyError(e.message)
+    } else {
+      errorMessage.value = t('auth.callbackError.generic')
+    }
+  }
+})
 </script>

@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from '@/lib/supabase'
-import { useAuthStore } from './auth.store'
+import { api } from '@/lib/api'
 import { useVehiclesStore } from './vehicles.store'
 import type { OdometerEntry, OdometerEntryInsert, OdometerEntryUpdate } from '@/types'
 
@@ -14,13 +13,7 @@ export const useOdometerStore = defineStore('odometer', () => {
     loading.value = true
     error.value = null
     try {
-      const { data, error: err } = await supabase
-        .from('odometer_entries')
-        .select('*')
-        .eq('vehicle_id', vehicleId)
-        .order('reading_date', { ascending: false })
-      if (err) throw err
-      entries.value = (data as OdometerEntry[]) ?? []
+      entries.value = await api.odometer.listByVehicle(vehicleId)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
     } finally {
@@ -29,39 +22,34 @@ export const useOdometerStore = defineStore('odometer', () => {
   }
 
   async function create(payload: OdometerEntryInsert): Promise<OdometerEntry> {
-    const auth = useAuthStore()
-    const { data, error: err } = await supabase
-      .from('odometer_entries')
-      .insert({ ...payload, user_id: auth.user!.id })
-      .select()
-      .single()
-    if (err) throw err
-    const entry = data as OdometerEntry
+    const { vehicle_id, ...body } = payload
+    const entry = await api.odometer.create(vehicle_id, body)
     entries.value.unshift(entry)
     await useVehiclesStore().syncOdometer(entry.vehicle_id, entry.reading_km)
     return entry
   }
 
+  /**
+   * Update is unsupported by the new backend (no PATCH on odometer entries).
+   * The legacy interface is preserved for compatibility — implemented as a
+   * delete-then-recreate to keep callers working.
+   */
   async function update(id: string, payload: OdometerEntryUpdate): Promise<OdometerEntry> {
-    const { data, error: err } = await supabase
-      .from('odometer_entries')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single()
-    if (err) throw err
-    const entry = data as OdometerEntry
-    const idx = entries.value.findIndex((e) => e.id === id)
-    if (idx !== -1) entries.value[idx] = entry
-    if (payload.reading_km !== undefined) {
-      await useVehiclesStore().syncOdometer(entry.vehicle_id, entry.reading_km)
+    const existing = entries.value.find((e) => e.id === id)
+    if (!existing) throw new Error('Entry not found')
+    await api.odometer.remove(id)
+    entries.value = entries.value.filter((e) => e.id !== id)
+    const merged: OdometerEntryInsert = {
+      vehicle_id: existing.vehicle_id,
+      reading_km: payload.reading_km ?? existing.reading_km,
+      reading_date: payload.reading_date ?? existing.reading_date,
+      notes: payload.notes ?? existing.notes,
     }
-    return entry
+    return create(merged)
   }
 
   async function remove(id: string) {
-    const { error: err } = await supabase.from('odometer_entries').delete().eq('id', id)
-    if (err) throw err
+    await api.odometer.remove(id)
     entries.value = entries.value.filter((e) => e.id !== id)
   }
 

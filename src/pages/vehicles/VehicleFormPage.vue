@@ -171,14 +171,12 @@ async function submit() {
       const vehicleId = route.params.id as string
       await store.update(vehicleId, form.value)
       if (pendingPhoto.value) {
-        const path = await store.uploadPhoto(vehicleId, pendingPhoto.value)
-        await store.update(vehicleId, { photo_url: path })
+        await store.uploadPhoto(vehicleId, pendingPhoto.value)
       }
     } else {
       const vehicle = await store.create(form.value)
       if (pendingPhoto.value) {
-        const path = await store.uploadPhoto(vehicle.id, pendingPhoto.value)
-        await store.update(vehicle.id, { photo_url: path })
+        await store.uploadPhoto(vehicle.id, pendingPhoto.value)
       }
     }
     router.push({ name: 'vehicle-list' })

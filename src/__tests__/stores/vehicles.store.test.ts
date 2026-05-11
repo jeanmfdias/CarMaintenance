@@ -2,28 +2,24 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useOdometerStore } from '@/stores/odometer.store'
-import { useAuthStore } from '@/stores/auth.store'
 import type { Vehicle } from '@/types'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    from: vi.fn(),
-    storage: { from: vi.fn() },
+vi.mock('@/lib/api', () => ({
+  api: {
+    vehicles: {
+      list: vi.fn(),
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+      uploadPhoto: vi.fn(),
+      removePhoto: vi.fn(),
+      photoUrl: vi.fn(),
+    },
   },
 }))
 
-import { supabase } from '@/lib/supabase'
-
-function makeQueryBuilder(result: { data?: any; error?: any }) {
-  const b: any = {}
-  const chain = ['select', 'insert', 'update', 'delete', 'upsert', 'eq', 'order', 'limit']
-  chain.forEach((m) => { b[m] = vi.fn().mockReturnValue(b) })
-  b.single = vi.fn().mockResolvedValue(result)
-  b.maybeSingle = vi.fn().mockResolvedValue(result)
-  b.then = (onFulfilled: any, onRejected: any) =>
-    Promise.resolve(result).then(onFulfilled, onRejected)
-  return b
-}
+import { api } from '@/lib/api'
 
 function makeVehicle(overrides: Partial<Vehicle> = {}): Vehicle {
   return {
@@ -48,15 +44,12 @@ function makeVehicle(overrides: Partial<Vehicle> = {}): Vehicle {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
-  // Set up a logged-in user
-  const auth = useAuthStore()
-  auth.user = { id: 'u1' } as any
 })
 
 describe('vehicles.store — fetchAll', () => {
-  it('sets vehicles from supabase response', async () => {
+  it('sets vehicles from api.vehicles.list', async () => {
     const data = [makeVehicle({ id: 'v1' }), makeVehicle({ id: 'v2' })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data, error: null }) as any)
+    vi.mocked(api.vehicles.list).mockResolvedValue(data)
     const store = useVehiclesStore()
     await store.fetchAll()
     expect(store.vehicles).toEqual(data)
@@ -64,7 +57,7 @@ describe('vehicles.store — fetchAll', () => {
   })
 
   it('sets loading to true then false', async () => {
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: [], error: null }) as any)
+    vi.mocked(api.vehicles.list).mockResolvedValue([])
     const store = useVehiclesStore()
     const promise = store.fetchAll()
     expect(store.loading).toBe(true)
@@ -73,9 +66,7 @@ describe('vehicles.store — fetchAll', () => {
   })
 
   it('sets error message on failure', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('DB error') }) as any,
-    )
+    vi.mocked(api.vehicles.list).mockRejectedValue(new Error('DB error'))
     const store = useVehiclesStore()
     await store.fetchAll()
     expect(store.error).toBe('DB error')
@@ -109,47 +100,94 @@ describe('vehicles.store — computed', () => {
 describe('vehicles.store — create', () => {
   it('prepends the new vehicle to the list', async () => {
     const existing = makeVehicle({ id: 'v1' })
-    const created = makeVehicle({ id: 'v2', make: 'Honda' })
+    const created = makeVehicle({ id: 'v2', make: 'Honda', current_odometer: 0, purchase_date: null })
     const store = useVehiclesStore()
     store.vehicles = [existing]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    await store.create({ make: 'Honda', model: 'Civic', manufacture_year: 2021, model_year: 2021, fuel_type: 'gasoline', current_odometer: 0, purchase_date: null, sell_date: null, photo_url: null, notes: null })
+    vi.mocked(api.vehicles.create).mockResolvedValue(created)
+    await store.create({
+      make: 'Honda',
+      model: 'Civic',
+      manufacture_year: 2021,
+      model_year: 2021,
+      fuel_type: 'gasoline',
+      current_odometer: 0,
+      purchase_date: null,
+      sell_date: null,
+      photo_url: null,
+      notes: null,
+    })
     expect(store.vehicles[0]).toEqual(created)
     expect(store.vehicles[1]).toEqual(existing)
   })
 
   it('creates odometer entry when current_odometer > 0 and purchase_date is set', async () => {
     const created = makeVehicle({ id: 'v1', current_odometer: 50000, purchase_date: '2020-01-01' })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    vi.mocked(api.vehicles.create).mockResolvedValue(created)
     const odometerStore = useOdometerStore()
-    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as any)
+    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as never)
     const store = useVehiclesStore()
-    await store.create({ make: 'Toyota', model: 'Corolla', manufacture_year: 2020, model_year: 2020, fuel_type: 'gasoline', current_odometer: 50000, purchase_date: '2020-01-01', sell_date: null, photo_url: null, notes: null })
-    expect(createSpy).toHaveBeenCalledWith({ vehicle_id: 'v1', reading_km: 50000, reading_date: '2020-01-01', notes: null })
+    await store.create({
+      make: 'Toyota',
+      model: 'Corolla',
+      manufacture_year: 2020,
+      model_year: 2020,
+      fuel_type: 'gasoline',
+      current_odometer: 50000,
+      purchase_date: '2020-01-01',
+      sell_date: null,
+      photo_url: null,
+      notes: null,
+    })
+    expect(createSpy).toHaveBeenCalledWith({
+      vehicle_id: 'v1',
+      reading_km: 50000,
+      reading_date: '2020-01-01',
+      notes: null,
+    })
   })
 
   it('does not create odometer entry when current_odometer is 0', async () => {
     const created = makeVehicle({ id: 'v1', current_odometer: 0, purchase_date: '2020-01-01' })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
-    await useVehiclesStore().create({ make: 'Toyota', model: 'Corolla', manufacture_year: 2020, model_year: 2020, fuel_type: 'gasoline', current_odometer: 0, purchase_date: '2020-01-01', sell_date: null, photo_url: null, notes: null })
+    vi.mocked(api.vehicles.create).mockResolvedValue(created)
+    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as never)
+    await useVehiclesStore().create({
+      make: 'Toyota',
+      model: 'Corolla',
+      manufacture_year: 2020,
+      model_year: 2020,
+      fuel_type: 'gasoline',
+      current_odometer: 0,
+      purchase_date: '2020-01-01',
+      sell_date: null,
+      photo_url: null,
+      notes: null,
+    })
     expect(createSpy).not.toHaveBeenCalled()
   })
 
   it('does not create odometer entry when purchase_date is null', async () => {
     const created = makeVehicle({ id: 'v1', current_odometer: 50000, purchase_date: null })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
-    await useVehiclesStore().create({ make: 'Toyota', model: 'Corolla', manufacture_year: 2020, model_year: 2020, fuel_type: 'gasoline', current_odometer: 50000, purchase_date: null, sell_date: null, photo_url: null, notes: null })
+    vi.mocked(api.vehicles.create).mockResolvedValue(created)
+    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as never)
+    await useVehiclesStore().create({
+      make: 'Toyota',
+      model: 'Corolla',
+      manufacture_year: 2020,
+      model_year: 2020,
+      fuel_type: 'gasoline',
+      current_odometer: 50000,
+      purchase_date: null,
+      sell_date: null,
+      photo_url: null,
+      notes: null,
+    })
     expect(createSpy).not.toHaveBeenCalled()
   })
 
   it('throws on error', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('Insert failed') }) as any,
-    )
+    vi.mocked(api.vehicles.create).mockRejectedValue(new Error('Insert failed'))
     const store = useVehiclesStore()
-    await expect(store.create({} as any)).rejects.toThrow('Insert failed')
+    await expect(store.create({} as never)).rejects.toThrow('Insert failed')
   })
 })
 
@@ -159,15 +197,13 @@ describe('vehicles.store — update', () => {
     const updated = makeVehicle({ id: 'v1', make: 'Lexus' })
     const store = useVehiclesStore()
     store.vehicles = [v1]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.vehicles.update).mockResolvedValue(updated)
     await store.update('v1', { make: 'Lexus' })
     expect(store.vehicles[0]!.make).toBe('Lexus')
   })
 
   it('throws on error', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('Update failed') }) as any,
-    )
+    vi.mocked(api.vehicles.update).mockRejectedValue(new Error('Update failed'))
     const store = useVehiclesStore()
     await expect(store.update('v1', {})).rejects.toThrow('Update failed')
   })
@@ -177,16 +213,14 @@ describe('vehicles.store — remove', () => {
   it('removes the vehicle by id', async () => {
     const store = useVehiclesStore()
     store.vehicles = [makeVehicle({ id: 'v1' }), makeVehicle({ id: 'v2' })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: null, error: null }) as any)
+    vi.mocked(api.vehicles.remove).mockResolvedValue(undefined)
     await store.remove('v1')
     expect(store.vehicles).toHaveLength(1)
     expect(store.vehicles[0]!.id).toBe('v2')
   })
 
   it('throws on error', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('Delete failed') }) as any,
-    )
+    vi.mocked(api.vehicles.remove).mockRejectedValue(new Error('Delete failed'))
     const store = useVehiclesStore()
     store.vehicles = [makeVehicle({ id: 'v1' })]
     await expect(store.remove('v1')).rejects.toThrow('Delete failed')
@@ -198,7 +232,7 @@ describe('vehicles.store — archive', () => {
     const updated = makeVehicle({ id: 'v1', sell_date: '2024-06-01' })
     const store = useVehiclesStore()
     store.vehicles = [makeVehicle({ id: 'v1' })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.vehicles.update).mockResolvedValue(updated)
     const result = await store.archive('v1', '2024-06-01')
     expect(result.sell_date).toBe('2024-06-01')
   })
@@ -207,7 +241,7 @@ describe('vehicles.store — archive', () => {
 describe('vehicles.store — syncOdometer', () => {
   it('updates current_odometer when km is higher', async () => {
     const updated = makeVehicle({ id: 'v1', current_odometer: 60000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.vehicles.update).mockResolvedValue(updated)
     const store = useVehiclesStore()
     store.vehicles = [makeVehicle({ id: 'v1', current_odometer: 50000 })]
     await store.syncOdometer('v1', 60000)
@@ -219,7 +253,7 @@ describe('vehicles.store — syncOdometer', () => {
     store.vehicles = [makeVehicle({ id: 'v1', current_odometer: 50000 })]
     await store.syncOdometer('v1', 50000)
     expect(store.vehicles[0]!.current_odometer).toBe(50000)
-    expect(vi.mocked(supabase.from)).not.toHaveBeenCalled()
+    expect(api.vehicles.update).not.toHaveBeenCalled()
   })
 
   it('does not change odometer when km is lower than current_odometer', async () => {
@@ -227,7 +261,7 @@ describe('vehicles.store — syncOdometer', () => {
     store.vehicles = [makeVehicle({ id: 'v1', current_odometer: 50000 })]
     await store.syncOdometer('v1', 40000)
     expect(store.vehicles[0]!.current_odometer).toBe(50000)
-    expect(vi.mocked(supabase.from)).not.toHaveBeenCalled()
+    expect(api.vehicles.update).not.toHaveBeenCalled()
   })
 
   it('does nothing when km is null', async () => {
@@ -235,13 +269,13 @@ describe('vehicles.store — syncOdometer', () => {
     store.vehicles = [makeVehicle({ id: 'v1', current_odometer: 50000 })]
     await store.syncOdometer('v1', null)
     expect(store.vehicles[0]!.current_odometer).toBe(50000)
-    expect(vi.mocked(supabase.from)).not.toHaveBeenCalled()
+    expect(api.vehicles.update).not.toHaveBeenCalled()
   })
 
   it('does nothing when vehicle is not in store', async () => {
     const store = useVehiclesStore()
     store.vehicles = []
     await store.syncOdometer('v1', 60000)
-    expect(vi.mocked(supabase.from)).not.toHaveBeenCalled()
+    expect(api.vehicles.update).not.toHaveBeenCalled()
   })
 })

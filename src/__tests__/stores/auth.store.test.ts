@@ -2,31 +2,28 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.store'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
-    auth: {
-      getSession: vi.fn(),
-      signInWithOtp: vi.fn(),
-      signOut: vi.fn(),
-      onAuthStateChange: vi.fn().mockReturnValue({
-        data: { subscription: { unsubscribe: vi.fn() } },
-      }),
+vi.mock('@/lib/api', async () => {
+  // Keep ApiError as the real class so `instanceof` works in the store.
+  const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api')
+  return {
+    ...actual,
+    api: {
+      auth: {
+        sendMagicLink: vi.fn(),
+        verify: vi.fn(),
+        logout: vi.fn(),
+        me: vi.fn(),
+      },
+      health: vi.fn(),
     },
-  },
-}))
+    getToken: vi.fn(),
+    setToken: vi.fn(),
+    clearToken: vi.fn(),
+    onUnauthorized: vi.fn(),
+  }
+})
 
-import { supabase } from '@/lib/supabase'
-
-function mockFetch(reachable: boolean) {
-  vi.stubGlobal(
-    'fetch',
-    vi.fn().mockImplementation(() =>
-      reachable
-        ? Promise.resolve({ ok: true } as Response)
-        : Promise.reject(new TypeError('Failed to fetch')),
-    ),
-  )
-}
+import { api, getToken, setToken, clearToken, ApiError } from '@/lib/api'
 
 beforeEach(() => {
   setActivePinia(createPinia())
@@ -34,98 +31,128 @@ beforeEach(() => {
 })
 
 describe('auth.store — init', () => {
-  it('sets serviceUnavailable when Supabase is unreachable', async () => {
-    mockFetch(false)
+  it('sets serviceUnavailable when backend is unreachable', async () => {
+    vi.mocked(api.health).mockResolvedValue(false)
     const store = useAuthStore()
     await store.init()
     expect(store.serviceUnavailable).toBe(true)
     expect(store.loading).toBe(false)
   })
 
-  it('does not call getSession when unreachable', async () => {
-    mockFetch(false)
+  it('does not call api.auth.me when unreachable', async () => {
+    vi.mocked(api.health).mockResolvedValue(false)
     const store = useAuthStore()
     await store.init()
-    expect(supabase.auth.getSession).not.toHaveBeenCalled()
+    expect(api.auth.me).not.toHaveBeenCalled()
   })
 
-  it('sets user to null when session is absent', async () => {
-    mockFetch(true)
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: null },
-      error: null,
-    } as any)
+  it('sets user to null when no token is stored', async () => {
+    vi.mocked(api.health).mockResolvedValue(true)
+    vi.mocked(getToken).mockReturnValue(null)
     const store = useAuthStore()
     await store.init()
     expect(store.user).toBeNull()
     expect(store.serviceUnavailable).toBe(false)
     expect(store.loading).toBe(false)
+    expect(api.auth.me).not.toHaveBeenCalled()
   })
 
-  it('sets user when session is present', async () => {
+  it('loads user from /auth/me when a token is present', async () => {
     const fakeUser = { id: 'user-1', email: 'test@example.com' }
-    mockFetch(true)
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: { user: fakeUser } },
-      error: null,
-    } as any)
+    vi.mocked(api.health).mockResolvedValue(true)
+    vi.mocked(getToken).mockReturnValue('jwt-token')
+    vi.mocked(api.auth.me).mockResolvedValue(fakeUser)
     const store = useAuthStore()
     await store.init()
     expect(store.user).toEqual(fakeUser)
     expect(store.isAuthenticated).toBe(true)
   })
+
+  it('clears user on 401 from /auth/me', async () => {
+    vi.mocked(api.health).mockResolvedValue(true)
+    vi.mocked(getToken).mockReturnValue('jwt-token')
+    vi.mocked(api.auth.me).mockRejectedValue(new ApiError(401, 'unauthorized', 'expired'))
+    const store = useAuthStore()
+    await store.init()
+    expect(store.user).toBeNull()
+    expect(store.serviceUnavailable).toBe(false)
+  })
+
+  it('marks service unavailable on non-401 errors from /auth/me', async () => {
+    vi.mocked(api.health).mockResolvedValue(true)
+    vi.mocked(getToken).mockReturnValue('jwt-token')
+    vi.mocked(api.auth.me).mockRejectedValue(new ApiError(500, 'server_error', 'oops'))
+    const store = useAuthStore()
+    await store.init()
+    expect(store.serviceUnavailable).toBe(true)
+    expect(store.user).toBeNull()
+  })
 })
 
 describe('auth.store — sendMagicLink', () => {
-  it('calls signInWithOtp with the email', async () => {
-    vi.mocked(supabase.auth.signInWithOtp).mockResolvedValue({ data: {}, error: null } as any)
+  it('calls api.auth.sendMagicLink with the email', async () => {
+    vi.mocked(api.auth.sendMagicLink).mockResolvedValue(undefined)
     const store = useAuthStore()
     await store.sendMagicLink('user@example.com')
-    expect(supabase.auth.signInWithOtp).toHaveBeenCalledWith(
-      expect.objectContaining({ email: 'user@example.com' }),
-    )
+    expect(api.auth.sendMagicLink).toHaveBeenCalledWith('user@example.com')
   })
 
-  it('throws when supabase returns an error', async () => {
-    vi.mocked(supabase.auth.signInWithOtp).mockResolvedValue({
-      data: {},
-      error: new Error('Rate limited'),
-    } as any)
+  it('propagates errors from the API', async () => {
+    vi.mocked(api.auth.sendMagicLink).mockRejectedValue(new Error('Rate limited'))
     const store = useAuthStore()
     await expect(store.sendMagicLink('user@example.com')).rejects.toThrow('Rate limited')
   })
 })
 
-describe('auth.store — signOut', () => {
-  it('calls supabase.auth.signOut', async () => {
-    vi.mocked(supabase.auth.signOut).mockResolvedValue({ error: null } as any)
+describe('auth.store — verifyMagicLink', () => {
+  it('stores the token and the user on success', async () => {
+    const user = { id: 'u1', email: 'test@example.com' }
+    vi.mocked(api.auth.verify).mockResolvedValue({ access_token: 'jwt', user })
     const store = useAuthStore()
-    await store.signOut()
-    expect(supabase.auth.signOut).toHaveBeenCalled()
+    await store.verifyMagicLink('one-time-token')
+    expect(setToken).toHaveBeenCalledWith('jwt')
+    expect(store.user).toEqual(user)
   })
 
-  it('throws when supabase returns an error', async () => {
-    vi.mocked(supabase.auth.signOut).mockResolvedValue({
-      error: new Error('Sign out failed'),
-    } as any)
+  it('propagates errors and does not set user', async () => {
+    vi.mocked(api.auth.verify).mockRejectedValue(new ApiError(400, 'bad', 'expired'))
     const store = useAuthStore()
-    await expect(store.signOut()).rejects.toThrow('Sign out failed')
+    await expect(store.verifyMagicLink('bad-token')).rejects.toThrow('expired')
+    expect(setToken).not.toHaveBeenCalled()
+    expect(store.user).toBeNull()
+  })
+})
+
+describe('auth.store — signOut', () => {
+  it('calls api.auth.logout, clears the token, and unsets user', async () => {
+    vi.mocked(api.auth.logout).mockResolvedValue(undefined)
+    const store = useAuthStore()
+    store.user = { id: 'u1', email: 'a@b.com' }
+    await store.signOut()
+    expect(api.auth.logout).toHaveBeenCalled()
+    expect(clearToken).toHaveBeenCalled()
+    expect(store.user).toBeNull()
+  })
+
+  it('still clears local state when logout fails', async () => {
+    vi.mocked(api.auth.logout).mockRejectedValue(new Error('network'))
+    const store = useAuthStore()
+    store.user = { id: 'u1', email: 'a@b.com' }
+    await store.signOut()
+    expect(clearToken).toHaveBeenCalled()
+    expect(store.user).toBeNull()
   })
 })
 
 describe('auth.store — retryConnection', () => {
   it('resets serviceUnavailable and re-runs init', async () => {
-    mockFetch(false)
+    vi.mocked(api.health).mockResolvedValue(false)
+    vi.mocked(getToken).mockReturnValue(null)
     const store = useAuthStore()
     await store.init()
     expect(store.serviceUnavailable).toBe(true)
 
-    // Now fix the network and retry
-    mockFetch(true)
-    vi.mocked(supabase.auth.getSession).mockResolvedValue({
-      data: { session: null },
-      error: null,
-    } as any)
+    vi.mocked(api.health).mockResolvedValue(true)
     await store.retryConnection()
     expect(store.serviceUnavailable).toBe(false)
   })

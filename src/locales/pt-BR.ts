@@ -22,6 +22,7 @@ export default {
       title: 'Problema com o link de acesso',
       expired: 'Este link de acesso expirou ou não é mais válido. Solicite um novo link.',
       generic: 'Não foi possível entrar. Solicite um novo link de acesso.',
+      missingToken: 'Nenhum token de acesso foi informado. Solicite um novo link.',
       backToLogin: 'Voltar para o login',
     },
   },

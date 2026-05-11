@@ -2,25 +2,19 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useOdometerStore } from '@/stores/odometer.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
-import { useAuthStore } from '@/stores/auth.store'
 import type { OdometerEntry } from '@/types'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+vi.mock('@/lib/api', () => ({
+  api: {
+    odometer: {
+      listByVehicle: vi.fn(),
+      create: vi.fn(),
+      remove: vi.fn(),
+    },
+  },
 }))
 
-import { supabase } from '@/lib/supabase'
-
-function makeQueryBuilder(result: { data?: any; error?: any }) {
-  const b: any = {}
-  ;['select', 'insert', 'update', 'delete', 'eq', 'order'].forEach((m) => {
-    b[m] = vi.fn().mockReturnValue(b)
-  })
-  b.single = vi.fn().mockResolvedValue(result)
-  b.then = (onFulfilled: any, onRejected: any) =>
-    Promise.resolve(result).then(onFulfilled, onRejected)
-  return b
-}
+import { api } from '@/lib/api'
 
 function makeEntry(overrides: Partial<OdometerEntry> = {}): OdometerEntry {
   return {
@@ -38,13 +32,12 @@ function makeEntry(overrides: Partial<OdometerEntry> = {}): OdometerEntry {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
-  useAuthStore().user = { id: 'u1' } as any
 })
 
 describe('odometer.store — fetchByVehicle', () => {
-  it('sets entries from supabase', async () => {
+  it('sets entries from the API', async () => {
     const data = [makeEntry({ id: 'e1' }), makeEntry({ id: 'e2' })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data, error: null }) as any)
+    vi.mocked(api.odometer.listByVehicle).mockResolvedValue(data)
     const store = useOdometerStore()
     await store.fetchByVehicle('v1')
     expect(store.entries).toEqual(data)
@@ -52,9 +45,7 @@ describe('odometer.store — fetchByVehicle', () => {
   })
 
   it('sets error on failure', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('DB error') }) as any,
-    )
+    vi.mocked(api.odometer.listByVehicle).mockRejectedValue(new Error('DB error'))
     const store = useOdometerStore()
     await store.fetchByVehicle('v1')
     expect(store.error).toBe('DB error')
@@ -67,59 +58,50 @@ describe('odometer.store — create', () => {
     const created = makeEntry({ id: 'e2', reading_km: 55000 })
     const store = useOdometerStore()
     store.entries = [existing]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    vi.mocked(api.odometer.create).mockResolvedValue(created)
     const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 45000 } as any]
+    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 45000 } as never]
     vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    await store.create({ vehicle_id: 'v1', reading_km: 55000, reading_date: '2024-06-01', notes: null })
+    await store.create({
+      vehicle_id: 'v1',
+      reading_km: 55000,
+      reading_date: '2024-06-01',
+      notes: null,
+    })
     expect(store.entries[0]).toEqual(created)
     expect(store.entries[1]).toEqual(existing)
   })
 
   it('calls syncOdometer with vehicle_id and reading_km', async () => {
     const created = makeEntry({ id: 'e2', reading_km: 60000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    vi.mocked(api.odometer.create).mockResolvedValue(created)
     const vehiclesStore = useVehiclesStore()
     const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    await useOdometerStore().create({ vehicle_id: 'v1', reading_km: 60000, reading_date: '2024-06-01', notes: null })
+    await useOdometerStore().create({
+      vehicle_id: 'v1',
+      reading_km: 60000,
+      reading_date: '2024-06-01',
+      notes: null,
+    })
     expect(syncSpy).toHaveBeenCalledWith('v1', 60000)
   })
-})
 
-describe('odometer.store — update', () => {
-  it('updates the entry at the correct index', async () => {
-    const entry = makeEntry({ id: 'e1', reading_km: 50000 })
-    const updated = makeEntry({ id: 'e1', reading_km: 51000 })
-    const store = useOdometerStore()
-    store.entries = [entry]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+  it('strips vehicle_id from the body sent to the API', async () => {
+    const created = makeEntry({ id: 'e2', reading_km: 60000 })
+    vi.mocked(api.odometer.create).mockResolvedValue(created)
     const vehiclesStore = useVehiclesStore()
-    vehiclesStore.vehicles = [{ id: 'v1', current_odometer: 50000 } as any]
     vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    await store.update('e1', { reading_km: 51000 })
-    expect(store.entries[0]!.reading_km).toBe(51000)
-  })
-
-  it('calls syncOdometer when reading_km is in payload', async () => {
-    const updated = makeEntry({ id: 'e1', reading_km: 55000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
-    const vehiclesStore = useVehiclesStore()
-    const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    const store = useOdometerStore()
-    store.entries = [makeEntry({ id: 'e1' })]
-    await store.update('e1', { reading_km: 55000 })
-    expect(syncSpy).toHaveBeenCalledWith('v1', 55000)
-  })
-
-  it('does not call syncOdometer when reading_km is not in payload', async () => {
-    const updated = makeEntry({ id: 'e1', notes: 'updated note' })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
-    const vehiclesStore = useVehiclesStore()
-    const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    const store = useOdometerStore()
-    store.entries = [makeEntry({ id: 'e1' })]
-    await store.update('e1', { notes: 'updated note' })
-    expect(syncSpy).not.toHaveBeenCalled()
+    await useOdometerStore().create({
+      vehicle_id: 'v1',
+      reading_km: 60000,
+      reading_date: '2024-06-01',
+      notes: null,
+    })
+    expect(api.odometer.create).toHaveBeenCalledWith('v1', {
+      reading_km: 60000,
+      reading_date: '2024-06-01',
+      notes: null,
+    })
   })
 })
 
@@ -127,7 +109,7 @@ describe('odometer.store — remove', () => {
   it('removes the entry by id', async () => {
     const store = useOdometerStore()
     store.entries = [makeEntry({ id: 'e1' }), makeEntry({ id: 'e2', reading_km: 60000 })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: null, error: null }) as any)
+    vi.mocked(api.odometer.remove).mockResolvedValue(undefined)
     await store.remove('e1')
     expect(store.entries).toHaveLength(1)
     expect(store.entries[0]!.id).toBe('e2')

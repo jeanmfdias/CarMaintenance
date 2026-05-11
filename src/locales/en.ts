@@ -22,6 +22,7 @@ export default {
       title: 'Login link issue',
       expired: 'This login link has expired or is no longer valid. Please request a new one.',
       generic: 'We could not sign you in. Please request a new login link.',
+      missingToken: 'No login token was provided. Please request a new login link.',
       backToLogin: 'Back to login',
     },
   },

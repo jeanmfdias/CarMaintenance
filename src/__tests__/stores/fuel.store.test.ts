@@ -3,25 +3,21 @@ import { setActivePinia, createPinia } from 'pinia'
 import { useFuelStore } from '@/stores/fuel.store'
 import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useOdometerStore } from '@/stores/odometer.store'
-import { useAuthStore } from '@/stores/auth.store'
 import type { FuelFillup } from '@/types'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+vi.mock('@/lib/api', () => ({
+  api: {
+    fuel: {
+      listByVehicle: vi.fn(),
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    },
+  },
 }))
 
-import { supabase } from '@/lib/supabase'
-
-function makeQueryBuilder(result: { data?: any; error?: any }) {
-  const b: any = {}
-  ;['select', 'insert', 'update', 'delete', 'eq', 'order'].forEach((m) => {
-    b[m] = vi.fn().mockReturnValue(b)
-  })
-  b.single = vi.fn().mockResolvedValue(result)
-  b.then = (onFulfilled: any, onRejected: any) =>
-    Promise.resolve(result).then(onFulfilled, onRejected)
-  return b
-}
+import { api } from '@/lib/api'
 
 function makeFillup(overrides: Partial<FuelFillup> = {}): FuelFillup {
   return {
@@ -45,13 +41,12 @@ function makeFillup(overrides: Partial<FuelFillup> = {}): FuelFillup {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
-  useAuthStore().user = { id: 'u1' } as any
 })
 
 describe('fuel.store — fetchByVehicle', () => {
-  it('sets fillups from supabase', async () => {
+  it('sets fillups from the API', async () => {
     const data = [makeFillup({ id: 'f1' }), makeFillup({ id: 'f2', odometer_km: 2000 })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data, error: null }) as any)
+    vi.mocked(api.fuel.listByVehicle).mockResolvedValue(data)
     const store = useFuelStore()
     await store.fetchByVehicle('v1')
     expect(store.fillups).toEqual(data)
@@ -59,9 +54,7 @@ describe('fuel.store — fetchByVehicle', () => {
   })
 
   it('sets error on failure', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('DB error') }) as any,
-    )
+    vi.mocked(api.fuel.listByVehicle).mockRejectedValue(new Error('DB error'))
     const store = useFuelStore()
     await store.fetchByVehicle('v1')
     expect(store.error).toBe('DB error')
@@ -73,8 +66,18 @@ describe('fuel.store — create (odometer ordering)', () => {
     const store = useFuelStore()
     store.fillups = [makeFillup({ id: 'f1', odometer_km: 500 })]
     const created = makeFillup({ id: 'f2', odometer_km: 1000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    await store.create({ vehicle_id: 'v1', fillup_date: '2024-02-01', odometer_km: 1000, liters: 40, total_cost: 200, fuel_type: 'gasoline', full_tank: true, notes: null })
+    vi.mocked(api.fuel.create).mockResolvedValue(created)
+    vi.spyOn(useVehiclesStore(), 'syncOdometer').mockResolvedValue()
+    await store.create({
+      vehicle_id: 'v1',
+      fillup_date: '2024-02-01',
+      odometer_km: 1000,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
     expect(store.fillups[1]).toEqual(created)
   })
 
@@ -85,8 +88,18 @@ describe('fuel.store — create (odometer ordering)', () => {
       makeFillup({ id: 'f3', odometer_km: 1500 }),
     ]
     const created = makeFillup({ id: 'f2', odometer_km: 1000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    await store.create({ vehicle_id: 'v1', fillup_date: '2024-02-01', odometer_km: 1000, liters: 40, total_cost: 200, fuel_type: 'gasoline', full_tank: true, notes: null })
+    vi.mocked(api.fuel.create).mockResolvedValue(created)
+    vi.spyOn(useVehiclesStore(), 'syncOdometer').mockResolvedValue()
+    await store.create({
+      vehicle_id: 'v1',
+      fillup_date: '2024-02-01',
+      odometer_km: 1000,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
     expect(store.fillups[1]).toEqual(created)
     expect(store.fillups.map((f) => f.odometer_km)).toEqual([500, 1000, 1500])
   })
@@ -95,30 +108,80 @@ describe('fuel.store — create (odometer ordering)', () => {
     const store = useFuelStore()
     store.fillups = [makeFillup({ id: 'f2', odometer_km: 1000 })]
     const created = makeFillup({ id: 'f1', odometer_km: 100 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    await store.create({ vehicle_id: 'v1', fillup_date: '2024-01-01', odometer_km: 100, liters: 40, total_cost: 200, fuel_type: 'gasoline', full_tank: true, notes: null })
+    vi.mocked(api.fuel.create).mockResolvedValue(created)
+    vi.spyOn(useVehiclesStore(), 'syncOdometer').mockResolvedValue()
+    await store.create({
+      vehicle_id: 'v1',
+      fillup_date: '2024-01-01',
+      odometer_km: 100,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
     expect(store.fillups[0]).toEqual(created)
   })
 
   it('calls syncOdometer with vehicle_id and odometer_km', async () => {
     const created = makeFillup({ id: 'f1', vehicle_id: 'v1', odometer_km: 12345 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
+    vi.mocked(api.fuel.create).mockResolvedValue(created)
     const vehiclesStore = useVehiclesStore()
     const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
-    await useFuelStore().create({ vehicle_id: 'v1', fillup_date: '2024-02-01', odometer_km: 12345, liters: 40, total_cost: 200, fuel_type: 'gasoline', full_tank: true, notes: null })
+    await useFuelStore().create({
+      vehicle_id: 'v1',
+      fillup_date: '2024-02-01',
+      odometer_km: 12345,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
     expect(syncSpy).toHaveBeenCalledWith('v1', 12345)
   })
 
-  it('creates odometer entry with vehicle_id, odometer_km and fillup_date', async () => {
-    const created = makeFillup({ id: 'f1', vehicle_id: 'v1', odometer_km: 12345, fillup_date: '2024-03-15' })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    const vehiclesStore = useVehiclesStore()
-    vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    const odometerStore = useOdometerStore()
-    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as any)
-    await useFuelStore().create({ vehicle_id: 'v1', fillup_date: '2024-03-15', odometer_km: 12345, liters: 40, total_cost: 200, fuel_type: 'gasoline', full_tank: true, notes: null })
-    expect(createSpy).toHaveBeenCalledWith({ vehicle_id: 'v1', reading_km: 12345, reading_date: '2024-03-15', notes: null })
+  it('does NOT create a client-side odometer entry (backend mirrors it)', async () => {
+    const created = makeFillup({ id: 'f1', vehicle_id: 'v1', odometer_km: 12345 })
+    vi.mocked(api.fuel.create).mockResolvedValue(created)
+    vi.spyOn(useVehiclesStore(), 'syncOdometer').mockResolvedValue()
+    const odoCreateSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as never)
+    await useFuelStore().create({
+      vehicle_id: 'v1',
+      fillup_date: '2024-02-01',
+      odometer_km: 12345,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
+    expect(odoCreateSpy).not.toHaveBeenCalled()
+  })
+
+  it('strips vehicle_id from the body sent to the API', async () => {
+    const created = makeFillup({ id: 'f1', vehicle_id: 'v1' })
+    vi.mocked(api.fuel.create).mockResolvedValue(created)
+    vi.spyOn(useVehiclesStore(), 'syncOdometer').mockResolvedValue()
+    await useFuelStore().create({
+      vehicle_id: 'v1',
+      fillup_date: '2024-02-01',
+      odometer_km: 1000,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
+    expect(api.fuel.create).toHaveBeenCalledWith('v1', {
+      fillup_date: '2024-02-01',
+      odometer_km: 1000,
+      liters: 40,
+      total_cost: 200,
+      fuel_type: 'gasoline',
+      full_tank: true,
+      notes: null,
+    })
   })
 })
 
@@ -130,9 +193,8 @@ describe('fuel.store — update', () => {
       makeFillup({ id: 'f2', odometer_km: 1000 }),
     ]
     const updated = makeFillup({ id: 'f2', odometer_km: 300 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.fuel.update).mockResolvedValue(updated)
     vi.spyOn(useVehiclesStore(), 'syncOdometer').mockResolvedValue()
-    vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
     await store.update('f2', { odometer_km: 300 })
     expect(store.fillups[0]!.odometer_km).toBe(300)
     expect(store.fillups[1]!.odometer_km).toBe(500)
@@ -140,10 +202,9 @@ describe('fuel.store — update', () => {
 
   it('calls syncOdometer when odometer_km is in payload', async () => {
     const updated = makeFillup({ id: 'f1', vehicle_id: 'v1', odometer_km: 9000 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.fuel.update).mockResolvedValue(updated)
     const vehiclesStore = useVehiclesStore()
     const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
     const store = useFuelStore()
     store.fillups = [makeFillup({ id: 'f1' })]
     await store.update('f1', { odometer_km: 9000 })
@@ -152,15 +213,13 @@ describe('fuel.store — update', () => {
 
   it('does not call syncOdometer when odometer_km is not in payload', async () => {
     const updated = makeFillup({ id: 'f1', total_cost: 999 })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.fuel.update).mockResolvedValue(updated)
     const vehiclesStore = useVehiclesStore()
     const syncSpy = vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
-    const createSpy = vi.spyOn(useOdometerStore(), 'create').mockResolvedValue({} as any)
     const store = useFuelStore()
     store.fillups = [makeFillup({ id: 'f1' })]
     await store.update('f1', { total_cost: 999 })
     expect(syncSpy).not.toHaveBeenCalled()
-    expect(createSpy).not.toHaveBeenCalled()
   })
 })
 
@@ -168,7 +227,7 @@ describe('fuel.store — remove', () => {
   it('removes fillup by id', async () => {
     const store = useFuelStore()
     store.fillups = [makeFillup({ id: 'f1' }), makeFillup({ id: 'f2', odometer_km: 2000 })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: null, error: null }) as any)
+    vi.mocked(api.fuel.remove).mockResolvedValue(undefined)
     await store.remove('f1')
     expect(store.fillups).toHaveLength(1)
     expect(store.fillups[0]!.id).toBe('f2')

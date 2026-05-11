@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { supabase } from '@/lib/supabase'
-import { useAuthStore } from './auth.store'
+import { api } from '@/lib/api'
 import type { ServiceProvider, ServiceProviderInsert, ServiceProviderUpdate } from '@/types'
 
 export const useProvidersStore = defineStore('providers', () => {
@@ -13,12 +12,7 @@ export const useProvidersStore = defineStore('providers', () => {
     loading.value = true
     error.value = null
     try {
-      const { data, error: err } = await supabase
-        .from('service_providers')
-        .select('*')
-        .order('name', { ascending: true })
-      if (err) throw err
-      providers.value = (data as ServiceProvider[]) ?? []
+      providers.value = await api.providers.list()
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
     } finally {
@@ -27,36 +21,21 @@ export const useProvidersStore = defineStore('providers', () => {
   }
 
   async function create(payload: ServiceProviderInsert): Promise<ServiceProvider> {
-    const auth = useAuthStore()
-    const { data, error: err } = await supabase
-      .from('service_providers')
-      .insert({ ...payload, user_id: auth.user!.id })
-      .select()
-      .single()
-    if (err) throw err
-    const provider = data as ServiceProvider
+    const provider = await api.providers.create(payload)
     providers.value.push(provider)
     providers.value.sort((a, b) => a.name.localeCompare(b.name))
     return provider
   }
 
   async function update(id: string, payload: ServiceProviderUpdate): Promise<ServiceProvider> {
-    const { data, error: err } = await supabase
-      .from('service_providers')
-      .update(payload)
-      .eq('id', id)
-      .select()
-      .single()
-    if (err) throw err
-    const provider = data as ServiceProvider
+    const provider = await api.providers.update(id, payload)
     const idx = providers.value.findIndex((p) => p.id === id)
     if (idx !== -1) providers.value[idx] = provider
     return provider
   }
 
   async function remove(id: string) {
-    const { error: err } = await supabase.from('service_providers').delete().eq('id', id)
-    if (err) throw err
+    await api.providers.remove(id)
     providers.value = providers.value.filter((p) => p.id !== id)
   }
 

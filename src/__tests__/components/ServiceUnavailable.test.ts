@@ -4,12 +4,23 @@ import { createPinia, setActivePinia } from 'pinia'
 import ServiceUnavailable from '@/components/common/ServiceUnavailable.vue'
 import { useAuthStore } from '@/stores/auth.store'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: {
+vi.mock('@/lib/api', () => ({
+  api: {
     auth: {
-      getSession: vi.fn(),
-      onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
+      sendMagicLink: vi.fn(),
+      verify: vi.fn(),
+      logout: vi.fn(),
+      me: vi.fn(),
     },
+    health: vi.fn().mockResolvedValue(true),
+  },
+  getToken: vi.fn().mockReturnValue(null),
+  setToken: vi.fn(),
+  clearToken: vi.fn(),
+  onUnauthorized: vi.fn(),
+  ApiError: class ApiError extends Error {
+    status = 0
+    code = ''
   },
 }))
 

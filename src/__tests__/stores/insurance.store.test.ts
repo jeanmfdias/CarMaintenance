@@ -1,25 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useInsuranceStore } from '@/stores/insurance.store'
-import { useAuthStore } from '@/stores/auth.store'
 import type { InsurancePolicy } from '@/types'
 
-vi.mock('@/lib/supabase', () => ({
-  supabase: { from: vi.fn() },
+vi.mock('@/lib/api', () => ({
+  api: {
+    insurance: {
+      listByVehicle: vi.fn(),
+      get: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      remove: vi.fn(),
+    },
+  },
 }))
 
-import { supabase } from '@/lib/supabase'
-
-function makeQueryBuilder(result: { data?: any; error?: any }) {
-  const b: any = {}
-  ;['select', 'insert', 'update', 'delete', 'eq', 'order'].forEach((m) => {
-    b[m] = vi.fn().mockReturnValue(b)
-  })
-  b.single = vi.fn().mockResolvedValue(result)
-  b.then = (onFulfilled: any, onRejected: any) =>
-    Promise.resolve(result).then(onFulfilled, onRejected)
-  return b
-}
+import { api } from '@/lib/api'
 
 function makePolicy(overrides: Partial<InsurancePolicy> = {}): InsurancePolicy {
   return {
@@ -43,22 +39,19 @@ function makePolicy(overrides: Partial<InsurancePolicy> = {}): InsurancePolicy {
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
-  useAuthStore().user = { id: 'u1' } as any
 })
 
 describe('insurance.store — fetchByVehicle', () => {
-  it('sets policies from supabase', async () => {
+  it('sets policies from the API', async () => {
     const data = [makePolicy({ id: 'p1' }), makePolicy({ id: 'p2' })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data, error: null }) as any)
+    vi.mocked(api.insurance.listByVehicle).mockResolvedValue(data)
     const store = useInsuranceStore()
     await store.fetchByVehicle('v1')
     expect(store.policies).toEqual(data)
   })
 
   it('sets error on failure', async () => {
-    vi.mocked(supabase.from).mockReturnValue(
-      makeQueryBuilder({ data: null, error: new Error('DB error') }) as any,
-    )
+    vi.mocked(api.insurance.listByVehicle).mockRejectedValue(new Error('DB error'))
     const store = useInsuranceStore()
     await store.fetchByVehicle('v1')
     expect(store.error).toBe('DB error')
@@ -70,11 +63,43 @@ describe('insurance.store — create', () => {
     const store = useInsuranceStore()
     store.policies = [makePolicy({ id: 'p1', expiry_date: '2026-01-01' })]
     const created = makePolicy({ id: 'p2', expiry_date: '2025-06-01' })
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: created, error: null }) as any)
-    await store.create({ vehicle_id: 'v1', insurer: 'Bradesco', policy_number: null, start_date: '2024-06-01', expiry_date: '2025-06-01', annual_cost: null, notes: null, reminder_lead_days: 30 })
-    // p2 expires sooner → should be first
+    vi.mocked(api.insurance.create).mockResolvedValue(created)
+    await store.create({
+      vehicle_id: 'v1',
+      insurer: 'Bradesco',
+      policy_number: null,
+      start_date: '2024-06-01',
+      expiry_date: '2025-06-01',
+      annual_cost: null,
+      notes: null,
+      reminder_lead_days: 30,
+    })
     expect(store.policies[0]!.id).toBe('p2')
     expect(store.policies[1]!.id).toBe('p1')
+  })
+
+  it('strips vehicle_id from the body', async () => {
+    const created = makePolicy({ id: 'p2' })
+    vi.mocked(api.insurance.create).mockResolvedValue(created)
+    await useInsuranceStore().create({
+      vehicle_id: 'v1',
+      insurer: 'Bradesco',
+      policy_number: null,
+      start_date: '2024-06-01',
+      expiry_date: '2025-06-01',
+      annual_cost: null,
+      notes: null,
+      reminder_lead_days: 30,
+    })
+    expect(api.insurance.create).toHaveBeenCalledWith('v1', {
+      insurer: 'Bradesco',
+      policy_number: null,
+      start_date: '2024-06-01',
+      expiry_date: '2025-06-01',
+      annual_cost: null,
+      notes: null,
+      reminder_lead_days: 30,
+    })
   })
 })
 
@@ -84,7 +109,7 @@ describe('insurance.store — update', () => {
     const updated = makePolicy({ id: 'p1', annual_cost: 4000 })
     const store = useInsuranceStore()
     store.policies = [policy]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: updated, error: null }) as any)
+    vi.mocked(api.insurance.update).mockResolvedValue(updated)
     await store.update('p1', { annual_cost: 4000 })
     expect(store.policies[0]!.annual_cost).toBe(4000)
   })
@@ -94,7 +119,7 @@ describe('insurance.store — remove', () => {
   it('removes the policy by id', async () => {
     const store = useInsuranceStore()
     store.policies = [makePolicy({ id: 'p1' }), makePolicy({ id: 'p2' })]
-    vi.mocked(supabase.from).mockReturnValue(makeQueryBuilder({ data: null, error: null }) as any)
+    vi.mocked(api.insurance.remove).mockResolvedValue(undefined)
     await store.remove('p1')
     expect(store.policies).toHaveLength(1)
     expect(store.policies[0]!.id).toBe('p2')

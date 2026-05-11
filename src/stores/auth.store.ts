@@ -1,24 +1,17 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import type { User, Session } from '@supabase/supabase-js'
-import { supabase } from '@/lib/supabase'
+import { api, getToken, setToken, clearToken, onUnauthorized, ApiError } from '@/lib/api'
+import type { AuthUser } from '@/lib/api'
 
 export const useAuthStore = defineStore('auth', () => {
-  const user = ref<User | null>(null)
-  const session = ref<Session | null>(null)
+  const user = ref<AuthUser | null>(null)
   const loading = ref(true)
   const serviceUnavailable = ref(false)
 
   const isAuthenticated = computed(() => !!user.value)
 
   async function checkReachability(): Promise<boolean> {
-    try {
-      const url = `${import.meta.env.VITE_SUPABASE_URL}/auth/v1/health`
-      await fetch(url, { signal: AbortSignal.timeout(5000) })
-      return true
-    } catch {
-      return false
-    }
+    return api.health()
   }
 
   async function init() {
@@ -32,15 +25,31 @@ export const useAuthStore = defineStore('auth', () => {
       return
     }
 
-    const { data } = await supabase.auth.getSession()
-    session.value = data.session
-    user.value = data.session?.user ?? null
-    loading.value = false
-
-    supabase.auth.onAuthStateChange((_event, newSession) => {
-      session.value = newSession
-      user.value = newSession?.user ?? null
+    // Wire up a 401 handler — clears local user when token is rejected.
+    onUnauthorized(() => {
+      user.value = null
     })
+
+    const token = getToken()
+    if (!token) {
+      user.value = null
+      loading.value = false
+      return
+    }
+
+    try {
+      const me = await api.auth.me()
+      user.value = me
+    } catch (e) {
+      // 401 → token already cleared by the request layer
+      if (!(e instanceof ApiError) || e.status !== 401) {
+        // Non-auth error: surface as service unavailable so the user can retry
+        serviceUnavailable.value = true
+      }
+      user.value = null
+    } finally {
+      loading.value = false
+    }
   }
 
   async function retryConnection() {
@@ -48,19 +57,34 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   async function sendMagicLink(email: string) {
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
-      },
-    })
-    if (error) throw error
+    await api.auth.sendMagicLink(email)
+  }
+
+  async function verifyMagicLink(token: string): Promise<void> {
+    const { access_token, user: u } = await api.auth.verify(token)
+    setToken(access_token)
+    user.value = u
   }
 
   async function signOut() {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    try {
+      await api.auth.logout()
+    } catch {
+      // best-effort
+    }
+    clearToken()
+    user.value = null
   }
 
-  return { user, session, loading, serviceUnavailable, isAuthenticated, init, retryConnection, sendMagicLink, signOut }
+  return {
+    user,
+    loading,
+    serviceUnavailable,
+    isAuthenticated,
+    init,
+    retryConnection,
+    sendMagicLink,
+    verifyMagicLink,
+    signOut,
+  }
 })
