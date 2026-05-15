@@ -17,7 +17,7 @@
           :label="t('settings.fields.defaultReminderLeadDays')"
           type="number"
           :rules="[nonNegative]"
-          suffix="days"
+          :suffix="t('settings.daysSuffix')"
         />
       </v-card-text>
       <v-card-actions class="px-4 pb-4">

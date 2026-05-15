@@ -8,6 +8,12 @@ export const useProvidersStore = defineStore('providers', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  function reset() {
+    providers.value = []
+    loading.value = false
+    error.value = null
+  }
+
   async function fetchAll() {
     loading.value = true
     error.value = null
@@ -15,6 +21,7 @@ export const useProvidersStore = defineStore('providers', () => {
       providers.value = await api.providers.list()
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
+      throw e
     } finally {
       loading.value = false
     }
@@ -39,5 +46,5 @@ export const useProvidersStore = defineStore('providers', () => {
     providers.value = providers.value.filter((p) => p.id !== id)
   }
 
-  return { providers, loading, error, fetchAll, create, update, remove }
+  return { providers, loading, error, reset, fetchAll, create, update, remove }
 })

@@ -9,6 +9,12 @@ export const useOdometerStore = defineStore('odometer', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  function reset() {
+    entries.value = []
+    loading.value = false
+    error.value = null
+  }
+
   async function fetchByVehicle(vehicleId: string) {
     loading.value = true
     error.value = null
@@ -16,6 +22,7 @@ export const useOdometerStore = defineStore('odometer', () => {
       entries.value = await api.odometer.listByVehicle(vehicleId)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
+      throw e
     } finally {
       loading.value = false
     }
@@ -53,5 +60,5 @@ export const useOdometerStore = defineStore('odometer', () => {
     entries.value = entries.value.filter((e) => e.id !== id)
   }
 
-  return { entries, loading, error, fetchByVehicle, create, update, remove }
+  return { entries, loading, error, reset, fetchByVehicle, create, update, remove }
 })

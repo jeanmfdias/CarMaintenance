@@ -25,7 +25,7 @@
         prepend-icon="mdi-counter"
       >
         <v-list-item-title>
-          {{ entry.reading_km.toLocaleString() }} km
+          {{ formatKm(entry.reading_km) }} km
         </v-list-item-title>
         <v-list-item-subtitle>
           {{ entry.reading_date }}
@@ -79,6 +79,7 @@ import { useOdometerStore } from '@/stores/odometer.store'
 import OdometerFormDialog from './OdometerFormDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { formatKm } from '@/utils/format'
 import type { OdometerEntry } from '@/types'
 
 const props = defineProps<{ vehicleId: string }>()

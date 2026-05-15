@@ -65,6 +65,15 @@ export default {
     deleteConfirm: 'Delete this vehicle and all its records? This cannot be undone.',
     newTitle: 'Add vehicle',
     editTitle: 'Edit vehicle',
+    notFound: 'Vehicle not found.',
+    photoUpload: {
+      uploadPrompt: 'Click to upload photo',
+      hint: 'JPEG, PNG, WebP · max 5 MB',
+      tooLarge: 'File must be under 5 MB.',
+    },
+    validation: {
+      yearRange: 'Year must be between 1900 and 2100.',
+    },
   },
   vehicleDetail: {
     tabs: {
@@ -184,6 +193,7 @@ export default {
   settings: {
     title: 'Settings',
     saved: 'Settings saved.',
+    daysSuffix: 'days',
     fields: {
       language: 'Language',
       defaultReminderLeadDays: 'Default reminder lead (days)',

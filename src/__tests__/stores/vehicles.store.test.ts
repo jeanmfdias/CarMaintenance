@@ -65,10 +65,10 @@ describe('vehicles.store — fetchAll', () => {
     expect(store.loading).toBe(false)
   })
 
-  it('sets error message on failure', async () => {
+  it('sets error message and rethrows on failure', async () => {
     vi.mocked(api.vehicles.list).mockRejectedValue(new Error('DB error'))
     const store = useVehiclesStore()
-    await store.fetchAll()
+    await expect(store.fetchAll()).rejects.toThrow('DB error')
     expect(store.error).toBe('DB error')
     expect(store.vehicles).toEqual([])
   })

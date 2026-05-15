@@ -67,7 +67,7 @@
           {{ t(`vehicles.fuelTypes.${vehicle.fuel_type}`) }}
         </v-chip>
         <span class="text-body-2 text-medium-emphasis">
-          {{ vehicle.current_odometer.toLocaleString() }} {{ t('common.km') }}
+          {{ formatKm(vehicle.current_odometer) }} {{ t('common.km') }}
         </span>
       </div>
     </v-card-text>
@@ -75,9 +75,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { useVehiclesStore } from '@/stores/vehicles.store'
+import { useObjectUrl } from '@/composables/useObjectUrl'
+import { formatKm } from '@/utils/format'
 import type { Vehicle } from '@/types'
 
 const props = defineProps<{
@@ -91,8 +92,10 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const store = useVehiclesStore()
-const photoUrl = ref<string | null>(null)
+
+// Reactive photo URL — `useObjectUrl` fetches the bearer-gated upload, returns
+// a blob: URL, and revokes it on unmount or whenever the source path changes.
+const photoUrl = useObjectUrl(computed(() => props.vehicle.photo_url))
 
 const FUEL_COLORS: Record<string, string> = {
   gasoline: 'orange',
@@ -104,14 +107,4 @@ const FUEL_COLORS: Record<string, string> = {
 }
 
 const fuelChipColor = computed(() => FUEL_COLORS[props.vehicle.fuel_type] ?? 'grey')
-
-onMounted(async () => {
-  if (props.vehicle.photo_url) {
-    try {
-      photoUrl.value = await store.getPhotoUrl(props.vehicle.photo_url)
-    } catch {
-      // photo unavailable — show placeholder
-    }
-  }
-})
 </script>

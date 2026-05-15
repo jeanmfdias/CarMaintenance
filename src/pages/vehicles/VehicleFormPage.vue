@@ -91,7 +91,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter, useRoute } from 'vue-router'
 import { useVehiclesStore } from '@/stores/vehicles.store'
@@ -110,6 +110,16 @@ const errorMsg = ref('')
 const pendingPhoto = ref<File | null>(null)
 
 const isEdit = computed(() => !!route.params.id)
+// We own the preview blob URL once we fetch it — track it so we can revoke
+// on unmount. (VehiclePhotoUpload only revokes URLs it created itself.)
+const ownedPreviewUrl = ref<string | null>(null)
+
+onBeforeUnmount(() => {
+  if (ownedPreviewUrl.value) {
+    URL.revokeObjectURL(ownedPreviewUrl.value)
+    ownedPreviewUrl.value = null
+  }
+})
 
 const form = ref({
   make: '',
@@ -128,9 +138,9 @@ const fuelTypeItems = (['gasoline', 'diesel', 'ethanol', 'flex', 'electric', 'hy
   (v) => ({ title: t(`vehicles.fuelTypes.${v}`), value: v }),
 )
 
-const required = (v: unknown) => !!v || 'Required'
-const yearRule = (v: number) => (v >= 1900 && v <= 2100) || 'Invalid year'
-const nonNegative = (v: number) => v >= 0 || 'Must be 0 or greater'
+const required = (v: unknown) => !!v || t('common.required')
+const yearRule = (v: number) => (v >= 1900 && v <= 2100) || t('vehicles.validation.yearRange')
+const nonNegative = (v: number) => v >= 0 || t('common.nonNegative')
 
 onMounted(async () => {
   if (isEdit.value) {
@@ -151,9 +161,10 @@ onMounted(async () => {
       if (vehicle.photo_url) {
         try {
           const url = await store.getPhotoUrl(vehicle.photo_url)
+          ownedPreviewUrl.value = url
           photoUploadRef.value?.setPreview(url)
         } catch {
-          // ignore
+          // ignore — placeholder will show
         }
       }
     }

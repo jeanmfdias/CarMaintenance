@@ -134,6 +134,7 @@ import { useOdometerStore } from '@/stores/odometer.store'
 import { useFuelEfficiency } from '@/composables/useFuelEfficiency'
 import { CATEGORY_ICONS, CATEGORY_COLORS } from '@/utils/maintenanceCategories'
 import { exportMaintenanceCsv, exportVehicleReport } from '@/utils/exportData'
+import { formatCurrency, formatMonthShort } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
 import type { Vehicle, MaintenanceCategory } from '@/types'
 
@@ -264,10 +265,7 @@ const barData = computed(() => {
   }
 
   return {
-    labels: months.map((m) => {
-      const [y, mo] = m.split('-')
-      return new Date(Number(y), Number(mo) - 1, 1).toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
-    }),
+    labels: months.map((m) => formatMonthShort(`${m}-01`)),
     datasets: [
       { label: t('maintenance.title'), data: months.map((m) => mainCosts[m] ?? 0), backgroundColor: '#1565C0', stack: 'a' },
       { label: t('fuel.title'), data: months.map((m) => fuelCosts[m] ?? 0), backgroundColor: '#FF6F00', stack: 'a' },
@@ -309,10 +307,6 @@ const lineOptions = {
 }
 
 // ── Export ────────────────────────────────────────────────────────────────
-function formatCurrency(value: number): string {
-  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
-
 function doExportCsv() {
   exportMaintenanceCsv(props.vehicle, maintenanceStore.records)
 }

@@ -35,7 +35,7 @@
             </v-list-item-title>
             <v-list-item-subtitle>
               {{ record.record_date }}
-              <template v-if="record.odometer_km"> · {{ record.odometer_km.toLocaleString() }} km</template>
+              <template v-if="record.odometer_km"> · {{ formatKm(record.odometer_km) }} km</template>
             </v-list-item-subtitle>
             <template #append>
               <div class="d-flex align-center gap-2">
@@ -101,6 +101,8 @@ import { CATEGORY_ICONS } from '@/utils/maintenanceCategories'
 import MaintenanceFormDialog from './MaintenanceFormDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { formatCurrency, formatKm } from '@/utils/format'
+import { i18n } from '@/plugins/i18n'
 import type { MaintenanceRecord } from '@/types'
 
 const props = defineProps<{ vehicleId: string }>()
@@ -130,11 +132,9 @@ const groupedRecords = computed(() => {
 function formatMonth(ym: string): string {
   const [year, month] = ym.split('-')
   const d = new Date(Number(year), Number(month) - 1, 1)
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long' })
-}
-
-function formatCurrency(value: number): string {
-  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  const loc = i18n.global.locale
+  const active = (typeof loc === 'object' && loc && 'value' in loc ? loc.value : loc) as string
+  return new Intl.DateTimeFormat(active, { year: 'numeric', month: 'long' }).format(d)
 }
 
 function nextServiceColor(date: string): string {

@@ -113,4 +113,76 @@ describe('api — request behavior', () => {
     const result = await api.vehicles.remove('v1')
     expect(result).toBeUndefined()
   })
+
+  it('maps a structured 4xx error body to ApiError.code and .message', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(errorResponse(422, { error: { code: 'validation', message: 'bad payload' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const err = await api.vehicles.create({} as never).catch((e) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(422)
+    expect((err as ApiError).code).toBe('validation')
+    expect((err as ApiError).message).toBe('bad payload')
+  })
+
+  it('falls back to status text when the error body is not JSON', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('plain text', { status: 500, statusText: 'oops' }))
+    vi.stubGlobal('fetch', fetchMock)
+    const err = await api.vehicles.list().catch((e) => e)
+    expect(err).toBeInstanceOf(ApiError)
+    expect((err as ApiError).status).toBe(500)
+    expect((err as ApiError).code).toBe('unknown_error')
+    expect((err as ApiError).message).toBe('oops')
+  })
+})
+
+describe('api — vehicles photo', () => {
+  it('sends a multipart upload (FormData) without forcing application/json', async () => {
+    setToken('jwt')
+    const fetchMock = vi.fn().mockResolvedValue(
+      jsonResponse({ id: 'v1', photo_url: '/uploads/u/v1.jpg' }),
+    )
+    vi.stubGlobal('fetch', fetchMock)
+    const file = new File(['data'], 'photo.jpg', { type: 'image/jpeg' })
+    await api.vehicles.uploadPhoto('v1', file)
+    const [url, init] = fetchMock.mock.calls[0]!
+    expect(url).toBe('/api/v1/vehicles/v1/photo')
+    expect((init as RequestInit).method).toBe('POST')
+    expect((init as RequestInit).body).toBeInstanceOf(FormData)
+    const headers = (init as RequestInit).headers as Record<string, string>
+    expect(headers['Content-Type']).toBeUndefined()
+    expect(headers['Authorization']).toBe('Bearer jwt')
+  })
+
+  it('fetches a bearer-gated photo and returns a blob: URL', async () => {
+    setToken('jwt-img')
+    const blob = new Blob(['png-bytes'], { type: 'image/png' })
+    const fetchMock = vi.fn().mockResolvedValue(new Response(blob, { status: 200 }))
+    vi.stubGlobal('fetch', fetchMock)
+    const fakeBlobUrl = 'blob:http://localhost/abc'
+    const createSpy = vi.spyOn(URL, 'createObjectURL').mockReturnValue(fakeBlobUrl)
+    const out = await api.vehicles.photoUrl('/uploads/u/v1.jpg')
+    expect(out).toBe(fakeBlobUrl)
+    const [url, init] = fetchMock.mock.calls[0]!
+    // photo paths are NOT under /api/v1 — verify we hit the path as-is.
+    expect(url).toBe('/uploads/u/v1.jpg')
+    const headers = (init as RequestInit).headers as Record<string, string>
+    expect(headers['Authorization']).toBe('Bearer jwt-img')
+    createSpy.mockRestore()
+  })
+
+  it('returns null for empty photo paths', async () => {
+    const out = await api.vehicles.photoUrl(null)
+    expect(out).toBeNull()
+  })
+
+  it('throws an ApiError when the photo cannot be fetched', async () => {
+    setToken('jwt-img')
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 404 }))
+    vi.stubGlobal('fetch', fetchMock)
+    await expect(api.vehicles.photoUrl('/uploads/u/missing.jpg')).rejects.toBeInstanceOf(ApiError)
+  })
 })

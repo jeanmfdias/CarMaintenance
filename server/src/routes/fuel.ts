@@ -8,6 +8,8 @@ import { asyncHandler } from '../lib/asyncHandler.js'
 import { findOwnedOrThrow } from '../lib/ownership.js'
 import { mapFuel, toBoolInt } from '../lib/mappers.js'
 import { assertOwnsVehicle } from './vehicles.js'
+import { syncOdometerOnRecord } from '../lib/odometerSync.js'
+import { isoDateLike } from '../lib/validators.js'
 
 export const fuelNestedRouter = Router({ mergeParams: true })
 fuelNestedRouter.use(authMiddleware)
@@ -17,18 +19,20 @@ fuelFlatRouter.use(authMiddleware)
 
 const fuelTypeSchema = z.enum(['gasoline', 'diesel', 'ethanol', 'flex', 'electric', 'hybrid'])
 
-const insertSchema = z.object({
-  vehicle_id: z.string().uuid().optional(),
-  fillup_date: z.string().min(8),
-  odometer_km: z.number().int().min(0),
-  liters: z.number().positive(),
-  total_cost: z.number().min(0),
-  fuel_type: fuelTypeSchema.nullable().optional(),
-  full_tank: z.boolean().default(true),
-  notes: z.string().nullable().optional(),
-})
+const insertSchema = z
+  .object({
+    vehicle_id: z.string().uuid().optional(),
+    fillup_date: isoDateLike,
+    odometer_km: z.number().int().min(0).max(10_000_000),
+    liters: z.number().positive().max(10_000),
+    total_cost: z.number().min(0).max(10_000_000),
+    fuel_type: fuelTypeSchema.nullable().optional(),
+    full_tank: z.boolean().default(true),
+    notes: z.string().max(2000).nullable().optional(),
+  })
+  .strict()
 
-const updateSchema = insertSchema.partial()
+const updateSchema = insertSchema.partial().strict()
 
 function nowIso() {
   return new Date().toISOString()
@@ -77,21 +81,14 @@ fuelNestedRouter.post(
         now
       )
 
-    // Sync vehicle current_odometer if higher
-    getDb()
-      .prepare(
-        `UPDATE vehicles SET current_odometer = ?, updated_at = ?
-         WHERE id = ? AND user_id = ? AND current_odometer < ?`
-      )
-      .run(data.odometer_km, now, req.params.id, req.user!.id, data.odometer_km)
-
-    // Mirror an odometer entry
-    getDb()
-      .prepare(
-        `INSERT INTO odometer_entries (id, vehicle_id, user_id, reading_km, reading_date, notes, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`
-      )
-      .run(uuidv4(), req.params.id, req.user!.id, data.odometer_km, data.fillup_date, null, now)
+    // Server-side rule: mirror odometer (bumps vehicle.current_odometer
+    // and creates an odometer_entries row, deduped on date+km).
+    syncOdometerOnRecord({
+      userId: req.user!.id,
+      vehicleId: req.params.id,
+      reading_km: data.odometer_km,
+      reading_date: data.fillup_date,
+    })
 
     const row = getDb().prepare(`SELECT * FROM fuel_fillups WHERE id = ?`).get(id) as Parameters<
       typeof mapFuel
@@ -112,6 +109,17 @@ fuelFlatRouter.get(
   })
 )
 
+const UPDATABLE_FUEL_COLS = new Set([
+  'vehicle_id',
+  'fillup_date',
+  'odometer_km',
+  'liters',
+  'total_cost',
+  'fuel_type',
+  'full_tank',
+  'notes',
+])
+
 fuelFlatRouter.patch(
   '/:id',
   validateBody(updateSchema),
@@ -121,6 +129,7 @@ fuelFlatRouter.patch(
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {
+      if (!UPDATABLE_FUEL_COLS.has(k)) continue
       if (k === 'full_tank') {
         fields.push(`full_tank = ?`)
         values.push(toBoolInt(v as boolean, true))
@@ -131,8 +140,7 @@ fuelFlatRouter.patch(
     }
     if (fields.length > 0) {
       fields.push(`updated_at = ?`)
-      values.push(nowIso())
-      values.push(req.params.id, req.user!.id)
+      values.push(nowIso(), req.params.id, req.user!.id)
       getDb()
         .prepare(`UPDATE fuel_fillups SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`)
         .run(...values)

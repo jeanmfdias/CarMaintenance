@@ -8,6 +8,7 @@ import { asyncHandler } from '../lib/asyncHandler.js'
 import { findOwnedOrThrow } from '../lib/ownership.js'
 import { mapInsurance, toBoolInt } from '../lib/mappers.js'
 import { assertOwnsVehicle } from './vehicles.js'
+import { isoDateLike } from '../lib/validators.js'
 
 export const insuranceNestedRouter = Router({ mergeParams: true })
 insuranceNestedRouter.use(authMiddleware)
@@ -15,20 +16,35 @@ insuranceNestedRouter.use(authMiddleware)
 export const insuranceFlatRouter = Router()
 insuranceFlatRouter.use(authMiddleware)
 
-const insertSchema = z.object({
-  vehicle_id: z.string().uuid().optional(),
-  insurer: z.string().min(1),
-  policy_number: z.string().nullable().optional(),
-  start_date: z.string().min(8),
-  expiry_date: z.string().min(8),
-  annual_cost: z.number().min(0).nullable().optional(),
-  notes: z.string().nullable().optional(),
-  reminder_lead_days: z.number().int().min(0).default(30),
-})
+const insertSchema = z
+  .object({
+    vehicle_id: z.string().uuid().optional(),
+    insurer: z.string().min(1).max(200),
+    policy_number: z.string().max(200).nullable().optional(),
+    start_date: isoDateLike,
+    expiry_date: isoDateLike,
+    annual_cost: z.number().min(0).max(10_000_000).nullable().optional(),
+    notes: z.string().max(4000).nullable().optional(),
+    reminder_lead_days: z.number().int().min(0).max(3650).default(30),
+  })
+  .strict()
 
-const updateSchema = insertSchema.partial().extend({
-  reminder_sent: z.boolean().optional(),
-})
+const updateSchema = insertSchema
+  .partial()
+  .extend({ reminder_sent: z.boolean().optional() })
+  .strict()
+
+const UPDATABLE_COLS = new Set([
+  'vehicle_id',
+  'insurer',
+  'policy_number',
+  'start_date',
+  'expiry_date',
+  'annual_cost',
+  'notes',
+  'reminder_lead_days',
+  'reminder_sent',
+])
 
 function nowIso() {
   return new Date().toISOString()
@@ -104,6 +120,7 @@ insuranceFlatRouter.patch(
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {
+      if (!UPDATABLE_COLS.has(k)) continue
       if (k === 'reminder_sent') {
         fields.push(`reminder_sent = ?`)
         values.push(toBoolInt(v as boolean))
@@ -114,8 +131,7 @@ insuranceFlatRouter.patch(
     }
     if (fields.length > 0) {
       fields.push(`updated_at = ?`)
-      values.push(nowIso())
-      values.push(req.params.id, req.user!.id)
+      values.push(nowIso(), req.params.id, req.user!.id)
       getDb()
         .prepare(`UPDATE insurance_policies SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`)
         .run(...values)

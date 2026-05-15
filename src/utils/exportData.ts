@@ -62,8 +62,9 @@ export function exportVehicleReport(vehicle: Vehicle, records: MaintenanceRecord
   })
 
   // Maintenance records
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const y1 = (doc as any).lastAutoTable.finalY + 10
+  // jspdf-autotable mutates the doc with a `lastAutoTable` field — its types
+  // don't expose it. Narrow with a local interface instead of `any`.
+  const y1 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   doc.setFontSize(14)
   doc.text('Maintenance Records', 14, y1)
 
@@ -82,8 +83,7 @@ export function exportVehicleReport(vehicle: Vehicle, records: MaintenanceRecord
   })
 
   // Fuel log
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const y2 = (doc as any).lastAutoTable.finalY + 10
+  const y2 = (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY + 10
   doc.setFontSize(14)
   doc.text('Fuel Log', 14, y2)
 

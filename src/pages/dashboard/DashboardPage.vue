@@ -72,6 +72,7 @@ import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useMaintenanceStore } from '@/stores/maintenance.store'
 import { useFuelStore } from '@/stores/fuel.store'
 import { CATEGORY_ICONS } from '@/utils/maintenanceCategories'
+import { formatCurrency } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
 
 const { t } = useI18n()
@@ -164,7 +165,4 @@ function nextServiceColor(date: string): string {
   return 'success'
 }
 
-function formatCurrency(value: number): string {
-  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 </script>

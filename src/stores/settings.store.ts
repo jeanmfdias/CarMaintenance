@@ -9,6 +9,12 @@ export const useSettingsStore = defineStore('settings', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  function reset() {
+    settings.value = null
+    loading.value = false
+    error.value = null
+  }
+
   async function fetch() {
     loading.value = true
     error.value = null
@@ -20,6 +26,7 @@ export const useSettingsStore = defineStore('settings', () => {
       }
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
+      throw e
     } finally {
       loading.value = false
     }
@@ -33,5 +40,5 @@ export const useSettingsStore = defineStore('settings', () => {
     }
   }
 
-  return { settings, loading, error, fetch, save }
+  return { settings, loading, error, reset, fetch, save }
 })

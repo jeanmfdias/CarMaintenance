@@ -12,26 +12,43 @@ import { asyncHandler } from '../lib/asyncHandler.js'
 import { findOwnedOrThrow } from '../lib/ownership.js'
 import { mapVehicle } from '../lib/mappers.js'
 import { badRequest, notFound } from '../lib/errors.js'
+import { isoDateLike } from '../lib/validators.js'
+import { sniffImageMime } from '../lib/imageSniff.js'
 
 const router = Router()
 router.use(authMiddleware)
 
 const fuelTypeSchema = z.enum(['gasoline', 'diesel', 'ethanol', 'flex', 'electric', 'hybrid'])
 
-const vehicleInsertSchema = z.object({
-  make: z.string().min(1),
-  model: z.string().min(1),
-  manufacture_year: z.number().int().min(1900).max(2100),
-  model_year: z.number().int().min(1900).max(2100),
-  purchase_date: z.string().nullable().optional(),
-  sell_date: z.string().nullable().optional(),
-  fuel_type: fuelTypeSchema,
-  photo_url: z.string().nullable().optional(),
-  current_odometer: z.number().int().min(0),
-  notes: z.string().nullable().optional(),
-})
+const vehicleInsertSchema = z
+  .object({
+    make: z.string().min(1).max(100),
+    model: z.string().min(1).max(100),
+    manufacture_year: z.number().int().min(1900).max(2100),
+    model_year: z.number().int().min(1900).max(2100),
+    purchase_date: isoDateLike.nullable().optional(),
+    sell_date: isoDateLike.nullable().optional(),
+    fuel_type: fuelTypeSchema,
+    photo_url: z.string().max(500).nullable().optional(),
+    current_odometer: z.number().int().min(0).max(10_000_000),
+    notes: z.string().max(4000).nullable().optional(),
+  })
+  .strict()
 
-const vehicleUpdateSchema = vehicleInsertSchema.partial()
+const vehicleUpdateSchema = vehicleInsertSchema.partial().strict()
+
+const UPDATABLE_VEHICLE_COLS = new Set([
+  'make',
+  'model',
+  'manufacture_year',
+  'model_year',
+  'purchase_date',
+  'sell_date',
+  'fuel_type',
+  'photo_url',
+  'current_odometer',
+  'notes',
+])
 
 function nowIso() {
   return new Date().toISOString()
@@ -104,6 +121,7 @@ router.patch(
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {
+      if (!UPDATABLE_VEHICLE_COLS.has(k)) continue
       fields.push(`${k} = ?`)
       values.push(v ?? null)
     }
@@ -115,8 +133,7 @@ router.patch(
       return
     }
     fields.push(`updated_at = ?`)
-    values.push(nowIso())
-    values.push(req.params.id, req.user!.id)
+    values.push(nowIso(), req.params.id, req.user!.id)
     getDb()
       .prepare(`UPDATE vehicles SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`)
       .run(...values)
@@ -138,17 +155,31 @@ router.delete(
 
 // ---- Photo upload ----
 
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: { fileSize: 8 * 1024 * 1024 }, // 8 MB
-})
-
+// Map of accepted image MIME types -> safe extension we *write* to disk.
+// Filename extension always derives from the validated MIME, never the client filename.
 const ALLOWED_MIME: Record<string, string> = {
   'image/jpeg': 'jpg',
   'image/jpg': 'jpg',
   'image/png': 'png',
   'image/webp': 'webp',
 }
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 5 * 1024 * 1024, // 5 MB — keeps storage and bandwidth sane
+    files: 1,
+    fields: 0,
+  },
+  fileFilter: (_req, file, cb) => {
+    // First-pass check on the client-declared MIME — saves us from buffering
+    // an obvious mismatch. The authoritative check is byte sniffing below.
+    if (!ALLOWED_MIME[file.mimetype]) {
+      return cb(null, false)
+    }
+    cb(null, true)
+  },
+})
 
 router.post(
   '/:id/photo',
@@ -159,9 +190,19 @@ router.post(
       req.params.id,
       req.user!.id
     )
-    if (!req.file) throw badRequest('Missing file (form field "file")')
-    const ext = ALLOWED_MIME[req.file.mimetype]
-    if (!ext) throw badRequest(`Unsupported image type: ${req.file.mimetype}`)
+    if (!req.file) {
+      throw badRequest('Missing or unsupported file (expected form field "file" with a JPEG/PNG/WebP image)')
+    }
+    // Authoritative MIME comes from sniffing the buffer's magic bytes —
+    // never trust the client-declared Content-Type. Refuse if either the
+    // sniff fails or the sniffed type isn't in our allow-list.
+    // TODO: strip EXIF on JPEGs (privacy). Out of scope for now.
+    const sniffed = sniffImageMime(req.file.buffer)
+    if (!sniffed) {
+      throw badRequest('Uploaded file is not a recognized JPEG, PNG or WebP image')
+    }
+    const ext = ALLOWED_MIME[sniffed]
+    if (!ext) throw badRequest(`Unsupported image type: ${sniffed}`)
 
     const userDir = path.join(config.uploadsDir, req.user!.id)
     fs.mkdirSync(userDir, { recursive: true })
@@ -172,8 +213,15 @@ router.post(
       if (fs.existsSync(p)) fs.unlinkSync(p)
     }
 
+    // Filename derives from the validated vehicle id + MIME-derived extension.
+    // The vehicle id is a UUID we issued, so this can't escape userDir.
     const filename = `${vehicle.id}.${ext}`
     const fullPath = path.join(userDir, filename)
+    // Defense-in-depth: confirm the resolved path is still under userDir.
+    const resolved = path.resolve(fullPath)
+    if (!resolved.startsWith(path.resolve(userDir) + path.sep)) {
+      throw badRequest('Invalid upload path')
+    }
     fs.writeFileSync(fullPath, req.file.buffer)
 
     // Public-ish path served by /uploads/* (auth-gated)
@@ -202,7 +250,7 @@ router.delete(
     if (vehicle.photo_url) {
       const expectedPrefix = `/uploads/${req.user!.id}/`
       if (vehicle.photo_url.startsWith(expectedPrefix)) {
-        const filename = vehicle.photo_url.slice(expectedPrefix.length)
+        const filename = path.basename(vehicle.photo_url.slice(expectedPrefix.length))
         const fullPath = path.join(config.uploadsDir, req.user!.id, filename)
         if (fs.existsSync(fullPath)) {
           try {
@@ -226,7 +274,7 @@ router.delete(
 
 export default router
 // Re-exported helper so other route modules can verify vehicle ownership
-export const assertOwnsVehicle = (vehicleId: string, userId: string) => {
+export const assertOwnsVehicle = (vehicleId: string, userId: string): void => {
   const row = getDb()
     .prepare(`SELECT id, user_id FROM vehicles WHERE id = ?`)
     .get(vehicleId) as { id: string; user_id: string } | undefined

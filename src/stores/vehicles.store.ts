@@ -11,6 +11,12 @@ export const useVehiclesStore = defineStore('vehicles', () => {
   const activeVehicles = computed(() => vehicles.value.filter((v) => !v.sell_date))
   const archivedVehicles = computed(() => vehicles.value.filter((v) => !!v.sell_date))
 
+  function reset() {
+    vehicles.value = []
+    loading.value = false
+    error.value = null
+  }
+
   async function fetchAll() {
     loading.value = true
     error.value = null
@@ -18,6 +24,7 @@ export const useVehiclesStore = defineStore('vehicles', () => {
       vehicles.value = await api.vehicles.list()
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
+      throw e
     } finally {
       loading.value = false
     }
@@ -96,6 +103,7 @@ export const useVehiclesStore = defineStore('vehicles', () => {
     error,
     activeVehicles,
     archivedVehicles,
+    reset,
     fetchAll,
     create,
     update,

@@ -53,10 +53,10 @@ describe('fuel.store — fetchByVehicle', () => {
     expect(store.error).toBeNull()
   })
 
-  it('sets error on failure', async () => {
+  it('sets error and rethrows on failure', async () => {
     vi.mocked(api.fuel.listByVehicle).mockRejectedValue(new Error('DB error'))
     const store = useFuelStore()
-    await store.fetchByVehicle('v1')
+    await expect(store.fetchByVehicle('v1')).rejects.toThrow('DB error')
     expect(store.error).toBe('DB error')
   })
 })

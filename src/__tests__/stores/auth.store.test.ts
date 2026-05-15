@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 import { useAuthStore } from '@/stores/auth.store'
 
+// Stash the 401 handler registered by auth.store so tests can trigger it.
+let registered401Handler: (() => void) | null = null
+
 vi.mock('@/lib/api', async () => {
   // Keep ApiError as the real class so `instanceof` works in the store.
   const actual = await vi.importActual<typeof import('@/lib/api')>('@/lib/api')
@@ -19,7 +22,9 @@ vi.mock('@/lib/api', async () => {
     getToken: vi.fn(),
     setToken: vi.fn(),
     clearToken: vi.fn(),
-    onUnauthorized: vi.fn(),
+    onUnauthorized: vi.fn((handler: (() => void) | null) => {
+      registered401Handler = handler
+    }),
   }
 })
 
@@ -28,6 +33,7 @@ import { api, getToken, setToken, clearToken, ApiError } from '@/lib/api'
 beforeEach(() => {
   setActivePinia(createPinia())
   vi.clearAllMocks()
+  registered401Handler = null
 })
 
 describe('auth.store — init', () => {
@@ -141,6 +147,66 @@ describe('auth.store — signOut', () => {
     await store.signOut()
     expect(clearToken).toHaveBeenCalled()
     expect(store.user).toBeNull()
+  })
+
+  it('clears every domain store so a different user logging in starts fresh', async () => {
+    vi.mocked(api.auth.logout).mockResolvedValue(undefined)
+    const { useVehiclesStore } = await import('@/stores/vehicles.store')
+    const { useMaintenanceStore } = await import('@/stores/maintenance.store')
+    const { useSettingsStore } = await import('@/stores/settings.store')
+
+    const vehicles = useVehiclesStore()
+    const maintenance = useMaintenanceStore()
+    const settings = useSettingsStore()
+
+    // Seed each store with mock state from a "previous" session.
+    vehicles.vehicles = [{ id: 'v1' } as never]
+    maintenance.records = [{ id: 'r1' } as never]
+    settings.settings = { user_id: 'u1', locale: 'en', default_reminder_lead_days: 30 } as never
+
+    const auth = useAuthStore()
+    auth.user = { id: 'u1', email: 'a@b.com' }
+    await auth.signOut()
+
+    expect(vehicles.vehicles).toEqual([])
+    expect(maintenance.records).toEqual([])
+    expect(settings.settings).toBeNull()
+  })
+})
+
+describe('auth.store — 401 handler', () => {
+  it('clears user, redirects, and resets every domain store on 401', async () => {
+    vi.mocked(api.health).mockResolvedValue(true)
+    vi.mocked(getToken).mockReturnValue(null)
+
+    const { useVehiclesStore } = await import('@/stores/vehicles.store')
+    const { useMaintenanceStore } = await import('@/stores/maintenance.store')
+    const vehicles = useVehiclesStore()
+    const maintenance = useMaintenanceStore()
+    vehicles.vehicles = [{ id: 'v1' } as never]
+    maintenance.records = [{ id: 'r1' } as never]
+
+    const { setUnauthenticatedRedirect } = await import('@/stores/auth.store')
+    const redirect = vi.fn()
+    setUnauthenticatedRedirect(redirect)
+
+    const auth = useAuthStore()
+    auth.user = { id: 'u1', email: 'a@b.com' }
+    await auth.init()
+    expect(registered401Handler).toBeTypeOf('function')
+
+    // Fire the handler the API client would invoke after a real 401.
+    registered401Handler?.()
+    // Redirect runs synchronously; user is cleared synchronously too.
+    expect(auth.user).toBeNull()
+    expect(redirect).toHaveBeenCalled()
+    // Domain-store resets are dispatched via async dynamic imports — wait a
+    // few macrotasks for the import chain to settle before asserting.
+    await new Promise<void>((r) => setTimeout(r, 20))
+    expect(vehicles.vehicles).toEqual([])
+    expect(maintenance.records).toEqual([])
+
+    setUnauthenticatedRedirect(null)
   })
 })
 

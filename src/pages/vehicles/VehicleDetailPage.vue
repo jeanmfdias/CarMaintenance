@@ -9,7 +9,7 @@
         <h1 class="text-h5">{{ vehicle ? `${vehicle.make} ${vehicle.model}` : '' }}</h1>
         <div v-if="vehicle" class="text-caption text-medium-emphasis">
           {{ vehicle.manufacture_year }} · {{ t(`vehicles.fuelTypes.${vehicle.fuel_type}`) }}
-          · {{ vehicle.current_odometer.toLocaleString() }} km
+          · {{ formatKm(vehicle.current_odometer) }} km
         </div>
       </div>
       <v-spacer />
@@ -24,7 +24,7 @@
     </div>
 
     <v-alert v-if="!vehicle && !store.loading" type="warning" variant="tonal">
-      Vehicle not found.
+      {{ t('vehicles.notFound') }}
     </v-alert>
 
     <template v-if="vehicle">
@@ -67,6 +67,7 @@ import MaintenanceTab from '@/components/maintenance/MaintenanceTab.vue'
 import FuelTab from '@/components/fuel/FuelTab.vue'
 import OdometerTab from '@/components/odometer/OdometerTab.vue'
 import InsuranceTab from '@/components/insurance/InsuranceTab.vue'
+import { formatKm } from '@/utils/format'
 
 const { t } = useI18n()
 const route = useRoute()

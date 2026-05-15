@@ -49,7 +49,7 @@
               {{ policy.start_date }} → {{ policy.expiry_date }}
             </div>
             <div v-if="policy.annual_cost" class="text-body-2 mt-1">
-              R$ {{ policy.annual_cost.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) }} / {{ t('insurance.perYear') }}
+              {{ formatCurrency(policy.annual_cost) }} / {{ t('insurance.perYear') }}
             </div>
             <div v-if="policy.notes" class="text-caption text-medium-emphasis mt-1">
               {{ policy.notes }}
@@ -90,6 +90,7 @@ import { useInsuranceStore } from '@/stores/insurance.store'
 import InsuranceFormDialog from './InsuranceFormDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { formatCurrency } from '@/utils/format'
 import type { InsurancePolicy } from '@/types'
 
 const props = defineProps<{ vehicleId: string }>()

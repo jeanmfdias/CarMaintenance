@@ -8,6 +8,8 @@ import { asyncHandler } from '../lib/asyncHandler.js'
 import { findOwnedOrThrow } from '../lib/ownership.js'
 import { mapMaintenance, toBoolInt } from '../lib/mappers.js'
 import { assertOwnsVehicle } from './vehicles.js'
+import { syncOdometerOnRecord } from '../lib/odometerSync.js'
+import { isoDateLike } from '../lib/validators.js'
 
 export const maintenanceNestedRouter = Router({ mergeParams: true })
 maintenanceNestedRouter.use(authMiddleware)
@@ -29,24 +31,43 @@ const categorySchema = z.enum([
   'other',
 ])
 
-const insertSchema = z.object({
-  vehicle_id: z.string().uuid().optional(),
-  service_provider_id: z.string().uuid().nullable().optional(),
-  category: categorySchema,
-  record_date: z.string().min(8),
-  odometer_km: z.number().int().min(0).nullable().optional(),
-  total_cost: z.number().min(0),
-  labor_cost: z.number().min(0).nullable().optional(),
-  parts_cost: z.number().min(0).nullable().optional(),
-  notes: z.string().nullable().optional(),
-  next_service_date: z.string().nullable().optional(),
-  next_service_km: z.number().int().min(0).nullable().optional(),
-  reminder_lead_days: z.number().int().min(0).default(30),
-})
+const insertSchema = z
+  .object({
+    vehicle_id: z.string().uuid().optional(),
+    service_provider_id: z.string().uuid().nullable().optional(),
+    category: categorySchema,
+    record_date: isoDateLike,
+    odometer_km: z.number().int().min(0).max(10_000_000).nullable().optional(),
+    total_cost: z.number().min(0).max(10_000_000),
+    labor_cost: z.number().min(0).max(10_000_000).nullable().optional(),
+    parts_cost: z.number().min(0).max(10_000_000).nullable().optional(),
+    notes: z.string().max(4000).nullable().optional(),
+    next_service_date: isoDateLike.nullable().optional(),
+    next_service_km: z.number().int().min(0).max(10_000_000).nullable().optional(),
+    reminder_lead_days: z.number().int().min(0).max(3650).default(30),
+  })
+  .strict()
 
-const updateSchema = insertSchema.partial().extend({
-  reminder_sent: z.boolean().optional(),
-})
+const updateSchema = insertSchema
+  .partial()
+  .extend({ reminder_sent: z.boolean().optional() })
+  .strict()
+
+const UPDATABLE_MAINT_COLS = new Set([
+  'vehicle_id',
+  'service_provider_id',
+  'category',
+  'record_date',
+  'odometer_km',
+  'total_cost',
+  'labor_cost',
+  'parts_cost',
+  'notes',
+  'next_service_date',
+  'next_service_km',
+  'reminder_lead_days',
+  'reminder_sent',
+])
 
 function nowIso() {
   return new Date().toISOString()
@@ -103,14 +124,16 @@ maintenanceNestedRouter.post(
         now
       )
 
-    // Sync vehicle's current_odometer if higher
+    // Server-side rule: any record carrying an odometer reading bumps the
+    // vehicle's current_odometer (if higher) and mirrors an odometer_entries
+    // row, deduped on (vehicle, date, km).
     if (typeof data.odometer_km === 'number') {
-      getDb()
-        .prepare(
-          `UPDATE vehicles SET current_odometer = ?, updated_at = ?
-           WHERE id = ? AND user_id = ? AND current_odometer < ?`
-        )
-        .run(data.odometer_km, now, req.params.id, req.user!.id, data.odometer_km)
+      syncOdometerOnRecord({
+        userId: req.user!.id,
+        vehicleId: req.params.id,
+        reading_km: data.odometer_km,
+        reading_date: data.record_date,
+      })
     }
 
     const row = getDb().prepare(`SELECT * FROM maintenance_records WHERE id = ?`).get(id) as Parameters<
@@ -141,6 +164,7 @@ maintenanceFlatRouter.patch(
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {
+      if (!UPDATABLE_MAINT_COLS.has(k)) continue
       if (k === 'reminder_sent') {
         fields.push(`reminder_sent = ?`)
         values.push(toBoolInt(v as boolean))
@@ -151,8 +175,7 @@ maintenanceFlatRouter.patch(
     }
     if (fields.length > 0) {
       fields.push(`updated_at = ?`)
-      values.push(nowIso())
-      values.push(req.params.id, req.user!.id)
+      values.push(nowIso(), req.params.id, req.user!.id)
       getDb()
         .prepare(`UPDATE maintenance_records SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`)
         .run(...values)

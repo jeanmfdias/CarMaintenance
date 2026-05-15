@@ -11,15 +11,19 @@ import { mapProvider } from '../lib/mappers.js'
 const router = Router()
 router.use(authMiddleware)
 
-const insertSchema = z.object({
-  name: z.string().min(1),
-  address: z.string().nullable().optional(),
-  phone: z.string().nullable().optional(),
-  email: z.string().nullable().optional(),
-  website: z.string().nullable().optional(),
-  notes: z.string().nullable().optional(),
-})
-const updateSchema = insertSchema.partial()
+const insertSchema = z
+  .object({
+    name: z.string().min(1).max(200),
+    address: z.string().max(500).nullable().optional(),
+    phone: z.string().max(50).nullable().optional(),
+    email: z.string().max(200).nullable().optional(),
+    website: z.string().max(500).nullable().optional(),
+    notes: z.string().max(4000).nullable().optional(),
+  })
+  .strict()
+const updateSchema = insertSchema.partial().strict()
+
+const UPDATABLE_COLS = new Set(['name', 'address', 'phone', 'email', 'website', 'notes'])
 
 function nowIso() {
   return new Date().toISOString()
@@ -87,13 +91,13 @@ router.patch(
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {
+      if (!UPDATABLE_COLS.has(k)) continue
       fields.push(`${k} = ?`)
       values.push(v ?? null)
     }
     if (fields.length > 0) {
       fields.push(`updated_at = ?`)
-      values.push(nowIso())
-      values.push(req.params.id, req.user!.id)
+      values.push(nowIso(), req.params.id, req.user!.id)
       getDb()
         .prepare(`UPDATE service_providers SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`)
         .run(...values)

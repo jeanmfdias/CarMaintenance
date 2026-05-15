@@ -35,7 +35,7 @@ Then `curl http://localhost:3001/health` should return `{"status":"ok"}`.
 | `npm run build`    | tsc -> `dist/`                              |
 | `npm start`        | run compiled output                         |
 | `npm run migrate`  | apply any pending SQL migrations            |
-| `npm run migrate:supabase` | one-off: copy data from Supabase into SQLite |
+| `npm run db:backup` | hot copy of the SQLite DB to `data/backups/` |
 | `npm test`         | run vitest suite                            |
 
 ## Configuration

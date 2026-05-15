@@ -44,10 +44,10 @@ describe('odometer.store — fetchByVehicle', () => {
     expect(store.error).toBeNull()
   })
 
-  it('sets error on failure', async () => {
+  it('sets error and rethrows on failure', async () => {
     vi.mocked(api.odometer.listByVehicle).mockRejectedValue(new Error('DB error'))
     const store = useOdometerStore()
-    await store.fetchByVehicle('v1')
+    await expect(store.fetchByVehicle('v1')).rejects.toThrow('DB error')
     expect(store.error).toBe('DB error')
   })
 })

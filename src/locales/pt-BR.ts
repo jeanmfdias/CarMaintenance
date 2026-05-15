@@ -65,6 +65,15 @@ export default {
     deleteConfirm: 'Excluir este veículo e todos os seus registros? Esta ação não pode ser desfeita.',
     newTitle: 'Adicionar veículo',
     editTitle: 'Editar veículo',
+    notFound: 'Veículo não encontrado.',
+    photoUpload: {
+      uploadPrompt: 'Clique para enviar foto',
+      hint: 'JPEG, PNG, WebP · máx. 5 MB',
+      tooLarge: 'O arquivo deve ter menos de 5 MB.',
+    },
+    validation: {
+      yearRange: 'O ano deve estar entre 1900 e 2100.',
+    },
   },
   vehicleDetail: {
     tabs: {
@@ -184,6 +193,7 @@ export default {
   settings: {
     title: 'Configurações',
     saved: 'Configurações salvas.',
+    daysSuffix: 'dias',
     fields: {
       language: 'Idioma',
       defaultReminderLeadDays: 'Antecedência padrão (dias)',

@@ -8,6 +8,12 @@ export const useInsuranceStore = defineStore('insurance', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  function reset() {
+    policies.value = []
+    loading.value = false
+    error.value = null
+  }
+
   async function fetchByVehicle(vehicleId: string) {
     loading.value = true
     error.value = null
@@ -15,6 +21,7 @@ export const useInsuranceStore = defineStore('insurance', () => {
       policies.value = await api.insurance.listByVehicle(vehicleId)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
+      throw e
     } finally {
       loading.value = false
     }
@@ -40,5 +47,5 @@ export const useInsuranceStore = defineStore('insurance', () => {
     policies.value = policies.value.filter((p) => p.id !== id)
   }
 
-  return { policies, loading, error, fetchByVehicle, create, update, remove }
+  return { policies, loading, error, reset, fetchByVehicle, create, update, remove }
 })

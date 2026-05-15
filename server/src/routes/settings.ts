@@ -9,10 +9,12 @@ import { mapSettings } from '../lib/mappers.js'
 const router = Router()
 router.use(authMiddleware)
 
-const upsertSchema = z.object({
-  locale: z.enum(['en', 'pt-BR']).optional(),
-  default_reminder_lead_days: z.number().int().min(0).optional(),
-})
+const upsertSchema = z
+  .object({
+    locale: z.enum(['en', 'pt-BR']).optional(),
+    default_reminder_lead_days: z.number().int().min(0).max(3650).optional(),
+  })
+  .strict()
 
 function nowIso() {
   return new Date().toISOString()

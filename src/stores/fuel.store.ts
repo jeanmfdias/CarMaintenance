@@ -10,6 +10,12 @@ export const useFuelStore = defineStore('fuel', () => {
   const loading = ref(false)
   const error = ref<string | null>(null)
 
+  function reset() {
+    fillups.value = []
+    loading.value = false
+    error.value = null
+  }
+
   async function fetchByVehicle(vehicleId: string) {
     loading.value = true
     error.value = null
@@ -17,6 +23,7 @@ export const useFuelStore = defineStore('fuel', () => {
       fillups.value = await api.fuel.listByVehicle(vehicleId)
     } catch (e: unknown) {
       error.value = e instanceof Error ? e.message : 'Unknown error'
+      throw e
     } finally {
       loading.value = false
     }
@@ -62,5 +69,5 @@ export const useFuelStore = defineStore('fuel', () => {
     fillups.value = fillups.value.filter((f) => f.id !== id)
   }
 
-  return { fillups, loading, error, fetchByVehicle, create, update, remove }
+  return { fillups, loading, error, reset, fetchByVehicle, create, update, remove }
 })

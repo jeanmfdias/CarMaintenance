@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { watch } from 'vue'
-import { useAuthStore } from '@/stores/auth.store'
+import { useAuthStore, setUnauthenticatedRedirect } from '@/stores/auth.store'
 
 function detectBasePath(): string {
   const re = /^https?:\/\/[^/]+(\/.*?\/)assets\//
@@ -77,6 +77,18 @@ const router = createRouter({
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
   ],
+})
+
+// When the API client signals a 401, the auth store wipes local state and
+// then calls this callback so the router can move the user back to /login.
+// Only redirect when the current route required auth — otherwise we stay put
+// (e.g. on the login page itself, an expired-token verify attempt).
+setUnauthenticatedRedirect(() => {
+  if (router.currentRoute.value.meta.requiresAuth) {
+    router.replace({ name: 'login' }).catch(() => {
+      // Ignore navigation errors (e.g., redundant navigation).
+    })
+  }
 })
 
 router.beforeEach(async (to) => {

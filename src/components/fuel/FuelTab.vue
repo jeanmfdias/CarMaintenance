@@ -47,7 +47,7 @@
         <v-list-item-subtitle>
           {{ item.fillup.liters.toFixed(3) }} L · {{ formatCurrency(item.fillup.total_cost) }}
           · {{ item.fillup.price_per_liter.toFixed(4) }} R$/L
-          · {{ item.fillup.odometer_km.toLocaleString() }} km
+          · {{ formatKm(item.fillup.odometer_km) }} km
         </v-list-item-subtitle>
         <template #append>
           <div class="d-flex align-center gap-2">
@@ -110,6 +110,7 @@ import { useFuelEfficiency } from '@/composables/useFuelEfficiency'
 import FuelFormDialog from './FuelFormDialog.vue'
 import EmptyState from '@/components/common/EmptyState.vue'
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue'
+import { formatCurrency, formatKm } from '@/utils/format'
 import type { FuelFillup } from '@/types'
 
 const props = defineProps<{ vehicleId: string }>()
@@ -137,10 +138,6 @@ const avgEfficiency = computed(() => {
   if (values.length === 0) return null
   return values.reduce((s, v) => s + v, 0) / values.length
 })
-
-function formatCurrency(value: number): string {
-  return `R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-}
 
 function openCreate() {
   editRecord.value = null

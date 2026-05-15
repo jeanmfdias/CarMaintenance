@@ -57,10 +57,10 @@ describe('maintenance.store — fetchByVehicle', () => {
     expect(store.error).toBeNull()
   })
 
-  it('sets error on failure', async () => {
+  it('sets error and rethrows on failure', async () => {
     vi.mocked(api.maintenance.listByVehicle).mockRejectedValue(new Error('DB error'))
     const store = useMaintenanceStore()
-    await store.fetchByVehicle('v1')
+    await expect(store.fetchByVehicle('v1')).rejects.toThrow('DB error')
     expect(store.error).toBe('DB error')
   })
 })
@@ -115,7 +115,7 @@ describe('maintenance.store — create', () => {
     expect(syncSpy).toHaveBeenCalledWith('v1', 20000)
   })
 
-  it('creates odometer entry when odometer_km is provided', async () => {
+  it('does NOT create a client-side odometer entry (backend mirrors it)', async () => {
     const created = makeRecord({ id: 'r1', odometer_km: 15000, record_date: '2024-03-01', vehicle_id: 'v1' })
     vi.mocked(api.maintenance.create).mockResolvedValue(created)
     const vehiclesStore = useVehiclesStore()
@@ -136,27 +136,29 @@ describe('maintenance.store — create', () => {
       reminder_lead_days: 30,
       service_provider_id: null,
     })
-    expect(createSpy).toHaveBeenCalledWith({
-      vehicle_id: 'v1',
-      reading_km: 15000,
-      reading_date: '2024-03-01',
-      notes: null,
-    })
+    // The backend now mirrors odometer entries server-side; the client must
+    // not create a duplicate or the entry will be double-counted.
+    expect(createSpy).not.toHaveBeenCalled()
   })
 
-  it('does not create odometer entry when odometer_km is null', async () => {
-    const created = makeRecord({ id: 'r1', odometer_km: null })
+  it('refetches odometer entries when the odometer store already has rows for the vehicle', async () => {
+    const created = makeRecord({ id: 'r1', odometer_km: 15000, record_date: '2024-03-01', vehicle_id: 'v1' })
     vi.mocked(api.maintenance.create).mockResolvedValue(created)
     const vehiclesStore = useVehiclesStore()
     vi.spyOn(vehiclesStore, 'syncOdometer').mockResolvedValue()
     const odometerStore = useOdometerStore()
-    const createSpy = vi.spyOn(odometerStore, 'create').mockResolvedValue({} as never)
+    // Preload an entry so the refetch heuristic fires
+    odometerStore.entries = [
+      // minimal shape — only vehicle_id is read by the heuristic
+      { id: 'e0', vehicle_id: 'v1' } as never,
+    ]
+    const fetchSpy = vi.spyOn(odometerStore, 'fetchByVehicle').mockResolvedValue()
     await useMaintenanceStore().create({
       vehicle_id: 'v1',
       category: 'oil_change',
       record_date: '2024-03-01',
       total_cost: 100,
-      odometer_km: null,
+      odometer_km: 15000,
       labor_cost: null,
       parts_cost: null,
       notes: null,
@@ -165,7 +167,7 @@ describe('maintenance.store — create', () => {
       reminder_lead_days: 30,
       service_provider_id: null,
     })
-    expect(createSpy).not.toHaveBeenCalled()
+    expect(fetchSpy).toHaveBeenCalledWith('v1')
   })
 
   it('throws on error', async () => {

@@ -16,6 +16,8 @@ vi.mock('@/lib/api', () => ({
     vehicles: { list: vi.fn(), uploadPhoto: vi.fn(), removePhoto: vi.fn() },
     odometer: { listByVehicle: vi.fn(), create: vi.fn(), remove: vi.fn() },
     maintenance: { listByVehicle: vi.fn(), create: vi.fn(), update: vi.fn(), remove: vi.fn() },
+    // The page's onMounted calls settingsStore.fetch(); stub so it doesn't throw.
+    settings: { get: vi.fn().mockResolvedValue({ locale: 'en', default_reminder_lead_days: 30 }), update: vi.fn() },
   },
 }))
 

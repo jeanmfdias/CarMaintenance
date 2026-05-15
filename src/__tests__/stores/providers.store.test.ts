@@ -48,10 +48,10 @@ describe('providers.store — fetchAll', () => {
     expect(store.error).toBeNull()
   })
 
-  it('sets error on failure', async () => {
+  it('sets error and rethrows on failure', async () => {
     vi.mocked(api.providers.list).mockRejectedValue(new Error('DB error'))
     const store = useProvidersStore()
-    await store.fetchAll()
+    await expect(store.fetchAll()).rejects.toThrow('DB error')
     expect(store.error).toBe('DB error')
   })
 })

@@ -1,8 +1,26 @@
 /**
  * Typed fetch-based API client for the CarMaintenance backend.
  *
- * Replaces the previous Supabase client. Singleton, no Pinia dependency.
- * Stores call methods on the exported `api` object — never `fetch` directly.
+ * Singleton, no Pinia dependency. Stores call methods on the exported `api`
+ * object — never `fetch` directly.
+ *
+ * Threat model — token storage
+ * ----------------------------
+ * The bearer JWT is persisted in localStorage under `carm.access_token`.
+ * That makes the token vulnerable to exfiltration via XSS: anything that
+ * runs in this origin's JS context (an injected `<script>`, a compromised
+ * third-party dep, a malicious Vue template binding) can read it.
+ *
+ * Mitigations baked into the rest of the codebase:
+ *  - No `v-html` / `innerHTML` is used anywhere with user input.
+ *  - No untrusted third-party CDN scripts. All deps come from npm + the
+ *    build's own bundle.
+ *  - No inline scripts in index.html.
+ *  - The backend sets a strict CSP via helmet.
+ *
+ * Future hardening (requires backend coordination, NOT done here):
+ *  - Move auth to an HttpOnly cookie set by the backend on /auth/verify;
+ *    drop this localStorage path. Until then, XSS = token compromise.
  */
 
 import type {

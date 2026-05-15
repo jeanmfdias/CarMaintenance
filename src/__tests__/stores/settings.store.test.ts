@@ -42,10 +42,10 @@ describe('settings.store — fetch', () => {
     expect(i18n.global.locale.value).toBe('pt-BR')
   })
 
-  it('sets error on failure', async () => {
+  it('sets error and rethrows on failure', async () => {
     vi.mocked(api.settings.get).mockRejectedValue(new Error('DB error'))
     const store = useSettingsStore()
-    await store.fetch()
+    await expect(store.fetch()).rejects.toThrow('DB error')
     expect(store.error).toBe('DB error')
   })
 })
