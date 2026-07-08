@@ -94,6 +94,11 @@ maintenanceNestedRouter.post(
   asyncHandler(async (req, res) => {
     assertOwnsVehicle(req.params.id, req.user!.id)
     const data = req.body as z.infer<typeof insertSchema>
+    // A referenced service provider must belong to the caller. Throws 404
+    // (not 403) so we never leak the existence of another user's provider.
+    if (data.service_provider_id) {
+      findOwnedOrThrow('service_providers', data.service_provider_id, req.user!.id)
+    }
     const id = uuidv4()
     const now = nowIso()
     getDb()
@@ -161,6 +166,15 @@ maintenanceFlatRouter.patch(
   asyncHandler(async (req, res) => {
     findOwnedOrThrow('maintenance_records', req.params.id, req.user!.id)
     const data = req.body as z.infer<typeof updateSchema>
+    // Reassigning the record to another vehicle or provider requires owning
+    // the target too — otherwise a user could relink their row to someone
+    // else's vehicle/provider. 404 keeps existence of others' rows hidden.
+    if (data.vehicle_id !== undefined) {
+      assertOwnsVehicle(data.vehicle_id, req.user!.id)
+    }
+    if (data.service_provider_id) {
+      findOwnedOrThrow('service_providers', data.service_provider_id, req.user!.id)
+    }
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {

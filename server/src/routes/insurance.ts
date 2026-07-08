@@ -117,6 +117,11 @@ insuranceFlatRouter.patch(
   asyncHandler(async (req, res) => {
     findOwnedOrThrow('insurance_policies', req.params.id, req.user!.id)
     const data = req.body as z.infer<typeof updateSchema>
+    // Reassigning to another vehicle requires owning that vehicle too.
+    // 404 keeps the existence of others' vehicles hidden.
+    if (data.vehicle_id !== undefined) {
+      assertOwnsVehicle(data.vehicle_id, req.user!.id)
+    }
     const fields: string[] = []
     const values: unknown[] = []
     for (const [k, v] of Object.entries(data)) {
