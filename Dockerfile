@@ -18,6 +18,7 @@ FROM nginx:stable-alpine
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY ./infra/nginx.conf /etc/nginx/conf.d/default.conf
+COPY ./infra/security-headers.conf /etc/nginx/snippets/security-headers.conf
 
 EXPOSE 80
 
