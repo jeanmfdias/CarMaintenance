@@ -45,22 +45,36 @@ export function createApp(): Express {
     })
   )
 
+  // Per-request CORS delegate. `credentials` is decided per response so we can
+  // enforce the invariant that a wildcard origin is NEVER combined with
+  // Access-Control-Allow-Credentials: true. Reflecting an arbitrary origin
+  // while allowing credentials would let any website make credentialed
+  // cross-origin requests against a signed-in user — so when '*' is configured
+  // we honor the open-origin intent but force credentials off.
   app.use(
-    cors({
-      origin(origin, cb) {
-        // No Origin header (server-to-server, curl, healthcheck) — allow.
-        if (!origin) return cb(null, true)
-        // Explicit "null" string Origin is sent by sandboxed iframes / file://
-        // — reject unless explicitly allow-listed.
-        if (origin === 'null' && !config.corsOrigins.includes('null')) {
-          return cb(new Error('Origin "null" not allowed by CORS'))
-        }
-        if (config.corsOrigins.includes('*') || config.corsOrigins.includes(origin)) {
-          return cb(null, true)
-        }
-        return cb(new Error(`Origin ${origin} not allowed by CORS`))
-      },
-      credentials: true,
+    cors((req, cb) => {
+      const origin = req.header('Origin')
+      const allowAny = config.corsOrigins.includes('*')
+
+      // No Origin header (server-to-server, curl, healthcheck) — allow.
+      if (!origin) return cb(null, { origin: true, credentials: !allowAny })
+
+      // Explicit "null" string Origin is sent by sandboxed iframes / file://
+      // — reject unless explicitly allow-listed.
+      if (origin === 'null' && !config.corsOrigins.includes('null')) {
+        return cb(new Error('Origin "null" not allowed by CORS'))
+      }
+
+      if (allowAny) {
+        // Wildcard is only safe without credentials (see note above).
+        return cb(null, { origin: true, credentials: false })
+      }
+
+      if (config.corsOrigins.includes(origin)) {
+        return cb(null, { origin: true, credentials: true })
+      }
+
+      return cb(new Error(`Origin ${origin} not allowed by CORS`))
     })
   )
 
