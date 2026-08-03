@@ -16,11 +16,18 @@
  *  - No untrusted third-party CDN scripts. All deps come from npm + the
  *    build's own bundle.
  *  - No inline scripts in index.html.
- *  - The backend sets a strict CSP via helmet.
+ *  - The SPA is served with a strict Content-Security-Policy by nginx
+ *    (`script-src 'self'`, no external origins) — see infra/nginx.conf and
+ *    infra/security-headers.conf. Note: the backend JSON API deliberately
+ *    disables helmet's CSP (it serves no HTML); the CSP that matters for
+ *    token safety is the one on the SPA responses, set at the proxy/static
+ *    layer, not by the API.
  *
  * Future hardening (requires backend coordination, NOT done here):
  *  - Move auth to an HttpOnly cookie set by the backend on /auth/verify;
- *    drop this localStorage path. Until then, XSS = token compromise.
+ *    drop this localStorage path. A CSP raises the bar against token theft
+ *    but does not eliminate it — only removing the token from JS-reachable
+ *    storage does. Until then, XSS = token compromise.
  */
 
 import type {
