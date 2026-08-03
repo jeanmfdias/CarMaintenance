@@ -26,6 +26,31 @@ if (isProd && (INSECURE_JWT_SECRETS.has(jwtSecret) || jwtSecret.length < 32)) {
   )
 }
 
+// Trust-proxy controls how Express derives req.ip from X-Forwarded-For, which
+// the per-IP rate limiters rely on. A blanket `true` trusts *every* upstream
+// hop, so any client can inject an X-Forwarded-For header to forge their IP and
+// slip past the rate limits. In production we refuse it: the operator must pin
+// the exact number of trusted proxy hops (behind the bundled nginx proxy that's
+// `1`) or a specific subnet. `false` (direct exposure) and integer/subnet
+// values are accepted.
+const trustProxy: boolean | number | string = (() => {
+  const v = process.env.TRUST_PROXY
+  if (!v) return false
+  if (v === 'true') return true
+  if (v === 'false') return false
+  const n = Number(v)
+  return Number.isFinite(n) ? n : v
+})()
+
+if (isProd && trustProxy === true) {
+  throw new Error(
+    'TRUST_PROXY=true trusts all proxies and makes X-Forwarded-For spoofable, ' +
+      'letting clients forge their IP and bypass per-IP rate limits. Set it to the ' +
+      'exact trusted hop count (e.g. 1 behind the bundled nginx proxy) or a ' +
+      'specific subnet. Refusing to boot.'
+  )
+}
+
 // Load version from package.json (best-effort)
 let version = '0.0.0'
 try {
@@ -61,14 +86,7 @@ export const config = {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean),
-  trustProxy: (() => {
-    const v = process.env.TRUST_PROXY
-    if (!v) return false
-    if (v === 'true') return true
-    if (v === 'false') return false
-    const n = Number(v)
-    return Number.isFinite(n) ? n : v
-  })() as boolean | number | string,
+  trustProxy,
   bodyLimit: process.env.BODY_LIMIT ?? '100kb',
   smtp: {
     host: process.env.SMTP_HOST ?? '',

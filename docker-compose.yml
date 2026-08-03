@@ -37,6 +37,11 @@ services:
       PORT: "3001"
       DATABASE_PATH: /app/data/app.db
       UPLOADS_DIR: /app/data/uploads
+      # Exactly one trusted hop: the `proxy` nginx in front of the backend.
+      # This makes req.ip the real client IP (correct per-IP rate limiting)
+      # without trusting client-supplied X-Forwarded-For beyond that hop.
+      # Never set this to `true` in production — the app refuses to boot on it.
+      TRUST_PROXY: "1"
     volumes:
       - ./server/data:/app/data
     expose:

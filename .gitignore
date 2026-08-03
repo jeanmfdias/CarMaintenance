@@ -27,3 +27,4 @@ dist-ssr
 
 # Local backup snapshots produced by `make backup`
 backups/
+docs/
