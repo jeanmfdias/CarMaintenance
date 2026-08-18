@@ -91,6 +91,8 @@ export default {
     noRecords: 'No maintenance records yet.',
     deleteConfirm: 'Delete this maintenance record?',
     recordCount: 'Records total',
+    openRecord: 'View maintenance',
+    markDone: 'Mark as done',
     fields: {
       category: 'Category',
       date: 'Date',

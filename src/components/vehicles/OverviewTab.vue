@@ -94,15 +94,28 @@
               >
                 <v-list-item-title>
                   {{ t(`maintenance.categories.${record.category}`) }}
+                  <span v-if="record.notes" class="text-caption text-medium-emphasis ml-2">
+                    {{ truncateNotes(record.notes) }}
+                  </span>
                 </v-list-item-title>
                 <template #append>
-                  <v-chip
-                    :color="nextServiceColor(record.next_service_date!)"
-                    size="small"
-                    label
-                  >
-                    {{ record.next_service_date }}
-                  </v-chip>
+                  <div class="d-flex align-center gap-2">
+                    <v-chip
+                      :color="nextServiceColor(record.next_service_date!)"
+                      size="small"
+                      label
+                    >
+                      {{ record.next_service_date }}
+                    </v-chip>
+                    <v-btn
+                      variant="text"
+                      size="small"
+                      prepend-icon="mdi-open-in-new"
+                      @click="openMaintenance(record)"
+                    >
+                      {{ t('maintenance.openRecord') }}
+                    </v-btn>
+                  </div>
                 </template>
               </v-list-item>
             </v-list>
@@ -120,6 +133,12 @@
         {{ t('export.exportPdf') }}
       </v-btn>
     </div>
+
+    <MaintenanceFormDialog
+      v-model="maintenanceDialog"
+      :vehicle-id="vehicleId"
+      :record="selectedMaintenance"
+    />
   </div>
 </template>
 
@@ -136,7 +155,8 @@ import { CATEGORY_ICONS, CATEGORY_COLORS } from '@/utils/maintenanceCategories'
 import { exportMaintenanceCsv, exportVehicleReport } from '@/utils/exportData'
 import { formatCurrency, formatMonthShort } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
-import type { Vehicle, MaintenanceCategory } from '@/types'
+import MaintenanceFormDialog from '@/components/maintenance/MaintenanceFormDialog.vue'
+import type { Vehicle, MaintenanceCategory, MaintenanceRecord } from '@/types'
 
 const props = defineProps<{ vehicleId: string; vehicle: Vehicle }>()
 
@@ -147,6 +167,8 @@ const insuranceStore = useInsuranceStore()
 const odometerStore = useOdometerStore()
 
 const loading = ref(false)
+const maintenanceDialog = ref(false)
+const selectedMaintenance = ref<MaintenanceRecord | null>(null)
 
 onMounted(async () => {
   loading.value = true
@@ -208,6 +230,16 @@ function nextServiceColor(date: string): string {
   if (days < 0) return 'error'
   if (days <= 30) return 'warning'
   return 'success'
+}
+
+function openMaintenance(record: MaintenanceRecord) {
+  selectedMaintenance.value = record
+  maintenanceDialog.value = true
+}
+
+function truncateNotes(notes: unknown): string {
+  const text = String(notes ?? '')
+  return text.length > 50 ? `${text.substring(0, 50)}...` : text
 }
 
 // ── Charts ────────────────────────────────────────────────────────────────

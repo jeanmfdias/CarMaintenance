@@ -91,6 +91,8 @@ export default {
     noRecords: 'Nenhum registro de manutenção ainda.',
     deleteConfirm: 'Excluir este registro de manutenção?',
     recordCount: 'Total de registros',
+    openRecord: 'Ver manutenção',
+    markDone: 'Marcar como feito',
     fields: {
       category: 'Categoria',
       date: 'Data',

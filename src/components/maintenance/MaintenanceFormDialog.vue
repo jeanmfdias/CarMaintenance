@@ -114,6 +114,17 @@
         </v-form>
       </v-card-text>
       <v-card-actions class="justify-end">
+        <v-btn
+          v-if="canMarkDone"
+          color="success"
+          variant="tonal"
+          prepend-icon="mdi-check"
+          :loading="saving"
+          @click="markDone"
+        >
+          {{ t('maintenance.markDone') }}
+        </v-btn>
+        <v-spacer />
         <v-btn variant="text" @click="model = false">{{ t('common.cancel') }}</v-btn>
         <v-btn color="primary" :loading="saving" @click="submit">{{ t('common.save') }}</v-btn>
       </v-card-actions>
@@ -196,6 +207,10 @@ const providerItems = computed(() =>
   providersStore.providers.map((p) => ({ title: p.name, value: p.id })),
 )
 
+const canMarkDone = computed(() =>
+  Boolean(props.record && (form.value.next_service_date || form.value.next_service_km)),
+)
+
 const required = (v: unknown) => (v !== null && v !== undefined && v !== '') || t('common.required')
 const nonNegative = (v: number) => v >= 0 || t('common.nonNegative')
 
@@ -210,6 +225,26 @@ async function submit() {
     } else {
       await maintenanceStore.create(form.value)
     }
+    model.value = false
+    emit('saved')
+  } catch (e: unknown) {
+    errorMsg.value = e instanceof Error ? e.message : t('common.error')
+  } finally {
+    saving.value = false
+  }
+}
+
+async function markDone() {
+  if (!props.record) return
+  saving.value = true
+  errorMsg.value = ''
+  try {
+    await maintenanceStore.update(props.record.id, {
+      next_service_date: null,
+      next_service_km: null,
+    })
+    form.value.next_service_date = null
+    form.value.next_service_km = null
     model.value = false
     emit('saved')
   } catch (e: unknown) {
