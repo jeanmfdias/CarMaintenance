@@ -32,6 +32,9 @@
           >
             <v-list-item-title>
               {{ t(`maintenance.categories.${record.category}`) }}
+              <span v-if="record.notes" class="text-caption text-medium-emphasis ml-2">
+                {{ truncateNotes(record.notes) }}
+              </span>
             </v-list-item-title>
             <v-list-item-subtitle>
               {{ record.record_date }}
@@ -142,6 +145,11 @@ function nextServiceColor(date: string): string {
   if (days < 0) return 'error'
   if (days <= 30) return 'warning'
   return 'success'
+}
+
+function truncateNotes(notes: unknown): string {
+  const text = String(notes ?? '')
+  return text.length > 50 ? `${text.substring(0, 50)}...` : text
 }
 
 function openCreate() {
