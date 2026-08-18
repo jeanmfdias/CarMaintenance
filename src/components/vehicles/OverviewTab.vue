@@ -101,11 +101,11 @@
                 <template #append>
                   <div class="d-flex align-center gap-2">
                     <v-chip
-                      :color="nextServiceColor(record.next_service_date!)"
+                      :color="nextServiceColor(record)"
                       size="small"
                       label
                     >
-                      {{ record.next_service_date }}
+                      {{ nextServiceLabel(record) }}
                     </v-chip>
                     <v-btn
                       variant="text"
@@ -153,7 +153,7 @@ import { useOdometerStore } from '@/stores/odometer.store'
 import { useFuelEfficiency } from '@/composables/useFuelEfficiency'
 import { CATEGORY_ICONS, CATEGORY_COLORS } from '@/utils/maintenanceCategories'
 import { exportMaintenanceCsv, exportVehicleReport } from '@/utils/exportData'
-import { formatCurrency, formatMonthShort } from '@/utils/format'
+import { formatCurrency, formatKm, formatMonthShort } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
 import MaintenanceFormDialog from '@/components/maintenance/MaintenanceFormDialog.vue'
 import type { Vehicle, MaintenanceCategory, MaintenanceRecord } from '@/types'
@@ -214,22 +214,51 @@ const avgEfficiency = computed(() => {
 const upcomingMaintenance = computed(() =>
   maintenanceStore.records
     .filter((r) => {
-      if (!r.next_service_date) return false
-      const days = Math.floor(
-        (new Date(r.next_service_date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000,
-      )
-      return days <= 90
+      if (r.next_service_km != null) {
+        return kmUntilService(r) <= (r.reminder_lead_km ?? 1000)
+      }
+      if (r.next_service_date) {
+        return daysUntil(r.next_service_date) <= r.reminder_lead_days
+      }
+      return false
     })
-    .sort((a, b) => a.next_service_date!.localeCompare(b.next_service_date!)),
+    .sort(compareUpcomingMaintenance),
 )
 
-function nextServiceColor(date: string): string {
-  const days = Math.floor(
-    (new Date(date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000,
-  )
+function daysUntil(date: string): number {
+  return Math.floor((new Date(date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
+}
+
+function kmUntilService(record: MaintenanceRecord): number {
+  return (record.next_service_km ?? 0) - props.vehicle.current_odometer
+}
+
+function compareUpcomingMaintenance(a: MaintenanceRecord, b: MaintenanceRecord): number {
+  if (a.next_service_km != null && b.next_service_km != null) {
+    return kmUntilService(a) - kmUntilService(b)
+  }
+  if (a.next_service_km != null) return -1
+  if (b.next_service_km != null) return 1
+  return (a.next_service_date ?? '').localeCompare(b.next_service_date ?? '')
+}
+
+function nextServiceColor(record: MaintenanceRecord): string {
+  if (record.next_service_km != null) {
+    return kmUntilService(record) < 0 ? 'error' : 'warning'
+  }
+  if (!record.next_service_date) return 'success'
+  const days = daysUntil(record.next_service_date)
   if (days < 0) return 'error'
   if (days <= 30) return 'warning'
   return 'success'
+}
+
+function nextServiceLabel(record: MaintenanceRecord): string {
+  if (record.next_service_km != null) {
+    const km = Math.max(kmUntilService(record), 0)
+    return `${formatKm(km)} km`
+  }
+  return record.next_service_date ?? ''
 }
 
 function openMaintenance(record: MaintenanceRecord) {

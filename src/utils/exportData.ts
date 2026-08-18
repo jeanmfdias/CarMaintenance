@@ -28,7 +28,7 @@ export function exportCsv(filename: string, rows: Record<string, unknown>[], col
 }
 
 export function exportMaintenanceCsv(vehicle: Vehicle, records: MaintenanceRecord[]) {
-  const columns = ['record_date', 'category', 'odometer_km', 'total_cost', 'labor_cost', 'parts_cost', 'notes', 'next_service_date', 'next_service_km']
+  const columns = ['record_date', 'category', 'odometer_km', 'total_cost', 'labor_cost', 'parts_cost', 'notes', 'next_service_date', 'next_service_km', 'reminder_lead_km']
   exportCsv(`${vehicle.make}_${vehicle.model}_maintenance.csv`, records as unknown as Record<string, unknown>[], columns)
 }
 

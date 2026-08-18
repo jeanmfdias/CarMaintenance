@@ -242,6 +242,7 @@ async function runImport() {
         next_service_date: null,
         next_service_km: null,
         reminder_lead_days: reminderDays,
+        reminder_lead_km: 1000,
       })
     }
     // Create odometer entries — one per unique date, highest km wins, skip dates already in DB

@@ -105,6 +105,7 @@ export default {
       nextServiceDate: 'Próxima revisão (data)',
       nextServiceKm: 'Próxima revisão (km)',
       reminderLeadDays: 'Antecedência do lembrete (dias)',
+      reminderLeadKm: 'Antecedência do lembrete (km)',
     },
     categories: {
       oil_change: 'Troca de óleo',

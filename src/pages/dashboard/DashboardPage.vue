@@ -51,10 +51,10 @@
             <v-list-item-title>
               {{ item.vehicleName }} — {{ t(`maintenance.categories.${item.record.category}`) }}
             </v-list-item-title>
-            <v-list-item-subtitle>{{ item.record.next_service_date }}</v-list-item-subtitle>
+            <v-list-item-subtitle>{{ nextServiceLabel(item) }}</v-list-item-subtitle>
             <template #append>
-              <v-chip :color="nextServiceColor(item.record.next_service_date!)" size="small" label>
-                {{ item.record.next_service_date }}
+              <v-chip :color="nextServiceColor(item)" size="small" label>
+                {{ nextServiceLabel(item) }}
               </v-chip>
             </template>
           </v-list-item>
@@ -72,8 +72,9 @@ import { useVehiclesStore } from '@/stores/vehicles.store'
 import { useMaintenanceStore } from '@/stores/maintenance.store'
 import { useFuelStore } from '@/stores/fuel.store'
 import { CATEGORY_ICONS } from '@/utils/maintenanceCategories'
-import { formatCurrency } from '@/utils/format'
+import { formatCurrency, formatKm } from '@/utils/format'
 import EmptyState from '@/components/common/EmptyState.vue'
+import type { MaintenanceRecord } from '@/types'
 
 const { t } = useI18n()
 const vehiclesStore = useVehiclesStore()
@@ -139,30 +140,74 @@ const barOptions = {
   scales: { x: { stacked: true }, y: { stacked: true } },
 }
 
+type UpcomingItem = {
+  record: MaintenanceRecord
+  vehicleId: string
+  vehicleName: string
+  currentOdometer: number
+}
+
 const allUpcoming = computed(() => {
-  const items: { record: (typeof maintenanceStore.records)[0]; vehicleId: string; vehicleName: string }[] = []
+  const items: UpcomingItem[] = []
   for (const v of vehiclesStore.vehicles) {
     const records = maintenanceByVehicle.value[v.id] ?? []
     for (const r of records) {
-      if (!r.next_service_date) continue
-      const days = Math.floor(
-        (new Date(r.next_service_date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000,
-      )
-      if (days <= 90) {
-        items.push({ record: r, vehicleId: v.id, vehicleName: `${v.make} ${v.model}` })
+      if (isUpcoming(r, v.current_odometer)) {
+        items.push({
+          record: r,
+          vehicleId: v.id,
+          vehicleName: `${v.make} ${v.model}`,
+          currentOdometer: v.current_odometer,
+        })
       }
     }
   }
-  return items.sort((a, b) => a.record.next_service_date!.localeCompare(b.record.next_service_date!))
+  return items.sort(compareUpcoming)
 })
 
-function nextServiceColor(date: string): string {
-  const days = Math.floor(
-    (new Date(date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000,
-  )
+function isUpcoming(record: MaintenanceRecord, currentOdometer: number): boolean {
+  if (record.next_service_km != null) {
+    return kmUntilService(record, currentOdometer) <= (record.reminder_lead_km ?? 1000)
+  }
+  if (record.next_service_date) {
+    return daysUntil(record.next_service_date) <= record.reminder_lead_days
+  }
+  return false
+}
+
+function daysUntil(date: string): number {
+  return Math.floor((new Date(date).getTime() - new Date().setHours(0, 0, 0, 0)) / 86400000)
+}
+
+function kmUntilService(record: MaintenanceRecord, currentOdometer: number): number {
+  return (record.next_service_km ?? 0) - currentOdometer
+}
+
+function compareUpcoming(a: UpcomingItem, b: UpcomingItem): number {
+  if (a.record.next_service_km != null && b.record.next_service_km != null) {
+    return kmUntilService(a.record, a.currentOdometer) - kmUntilService(b.record, b.currentOdometer)
+  }
+  if (a.record.next_service_km != null) return -1
+  if (b.record.next_service_km != null) return 1
+  return (a.record.next_service_date ?? '').localeCompare(b.record.next_service_date ?? '')
+}
+
+function nextServiceColor(item: UpcomingItem): string {
+  if (item.record.next_service_km != null) {
+    return kmUntilService(item.record, item.currentOdometer) < 0 ? 'error' : 'warning'
+  }
+  if (!item.record.next_service_date) return 'success'
+  const days = daysUntil(item.record.next_service_date)
   if (days < 0) return 'error'
   if (days <= 30) return 'warning'
   return 'success'
 }
 
+function nextServiceLabel(item: UpcomingItem): string {
+  if (item.record.next_service_km != null) {
+    const km = Math.max(kmUntilService(item.record, item.currentOdometer), 0)
+    return `${formatKm(km)} km`
+  }
+  return item.record.next_service_date ?? ''
+}
 </script>

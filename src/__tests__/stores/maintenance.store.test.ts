@@ -35,6 +35,7 @@ function makeRecord(overrides: Partial<MaintenanceRecord> = {}): MaintenanceReco
     next_service_date: null,
     next_service_km: null,
     reminder_lead_days: 30,
+    reminder_lead_km: 1000,
     reminder_sent: false,
     created_at: '2024-01-01',
     updated_at: '2024-01-01',
@@ -86,6 +87,7 @@ describe('maintenance.store — create', () => {
       next_service_date: null,
       next_service_km: null,
       reminder_lead_days: 30,
+      reminder_lead_km: 1000,
       service_provider_id: null,
     })
     expect(store.records[0]).toEqual(created)
@@ -110,6 +112,7 @@ describe('maintenance.store — create', () => {
       next_service_date: null,
       next_service_km: null,
       reminder_lead_days: 30,
+      reminder_lead_km: 1000,
       service_provider_id: null,
     })
     expect(syncSpy).toHaveBeenCalledWith('v1', 20000)
@@ -134,6 +137,7 @@ describe('maintenance.store — create', () => {
       next_service_date: null,
       next_service_km: null,
       reminder_lead_days: 30,
+      reminder_lead_km: 1000,
       service_provider_id: null,
     })
     // The backend now mirrors odometer entries server-side; the client must
@@ -165,6 +169,7 @@ describe('maintenance.store — create', () => {
       next_service_date: null,
       next_service_km: null,
       reminder_lead_days: 30,
+      reminder_lead_km: 1000,
       service_provider_id: null,
     })
     expect(fetchSpy).toHaveBeenCalledWith('v1')

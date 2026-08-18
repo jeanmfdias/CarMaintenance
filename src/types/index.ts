@@ -71,6 +71,7 @@ export interface MaintenanceRecord {
   next_service_date: string | null
   next_service_km: number | null
   reminder_lead_days: number
+  reminder_lead_km: number
   reminder_sent: boolean
   created_at: string
   updated_at: string

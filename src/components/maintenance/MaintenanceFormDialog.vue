@@ -107,6 +107,14 @@
                 :rules="[required]"
               />
             </v-col>
+            <v-col cols="12" sm="6">
+              <v-text-field
+                v-model.number="form.reminder_lead_km"
+                :label="t('maintenance.fields.reminderLeadKm')"
+                type="number"
+                :rules="[required, nonNegative]"
+              />
+            </v-col>
           </v-row>
           <v-alert v-if="errorMsg" type="error" variant="tonal" class="mt-2">
             {{ errorMsg }}
@@ -170,6 +178,7 @@ const defaultForm = (): MaintenanceRecordInsert => ({
   next_service_date: null,
   next_service_km: null,
   reminder_lead_days: settingsStore.settings?.default_reminder_lead_days ?? 14,
+  reminder_lead_km: 1000,
 })
 
 const form = ref<MaintenanceRecordInsert>(defaultForm())
@@ -191,6 +200,7 @@ watch(model, (open) => {
         next_service_date: props.record.next_service_date,
         next_service_km: props.record.next_service_km,
         reminder_lead_days: props.record.reminder_lead_days,
+        reminder_lead_km: props.record.reminder_lead_km ?? 1000,
       }
     } else {
       form.value = defaultForm()

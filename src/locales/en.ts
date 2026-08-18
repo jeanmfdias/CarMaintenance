@@ -105,6 +105,7 @@ export default {
       nextServiceDate: 'Next service date',
       nextServiceKm: 'Next service (km)',
       reminderLeadDays: 'Reminder lead (days)',
+      reminderLeadKm: 'Reminder lead (km)',
     },
     categories: {
       oil_change: 'Oil Change',

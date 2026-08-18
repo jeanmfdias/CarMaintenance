@@ -45,6 +45,7 @@ const insertSchema = z
     next_service_date: isoDateLike.nullable().optional(),
     next_service_km: z.number().int().min(0).max(10_000_000).nullable().optional(),
     reminder_lead_days: z.number().int().min(0).max(3650).default(30),
+    reminder_lead_km: z.number().int().min(0).max(1_000_000).default(1000),
   })
   .strict()
 
@@ -66,6 +67,7 @@ const UPDATABLE_MAINT_COLS = new Set([
   'next_service_date',
   'next_service_km',
   'reminder_lead_days',
+  'reminder_lead_km',
   'reminder_sent',
 ])
 
@@ -106,9 +108,9 @@ maintenanceNestedRouter.post(
         `INSERT INTO maintenance_records
           (id, vehicle_id, user_id, service_provider_id, category, record_date,
            odometer_km, total_cost, labor_cost, parts_cost, notes,
-           next_service_date, next_service_km, reminder_lead_days, reminder_sent,
+           next_service_date, next_service_km, reminder_lead_days, reminder_lead_km, reminder_sent,
            created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?)`
       )
       .run(
         id,
@@ -125,6 +127,7 @@ maintenanceNestedRouter.post(
         data.next_service_date ?? null,
         data.next_service_km ?? null,
         data.reminder_lead_days,
+        data.reminder_lead_km,
         now,
         now
       )
