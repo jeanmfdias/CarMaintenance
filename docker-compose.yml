@@ -53,6 +53,32 @@ services:
       retries: 3
       start_period: 15s
 
+  backend-php:
+    build:
+      context: ./server-php
+      dockerfile: Dockerfile
+    image: carmaintenance-backend-php:local
+    container_name: carm_backend_php
+    restart: unless-stopped
+    env_file:
+      - ./server-php/.env
+    environment:
+      APP_ENV: production
+      PORT: "3001"
+      DATABASE_PATH: /app/data/app.db
+      UPLOADS_DIR: /app/data/uploads
+      TRUST_PROXY: "1"
+    volumes:
+      - ./server/data:/app/data
+    expose:
+      - "3001"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
   proxy:
     image: nginx:stable-alpine
     container_name: carm_proxy
