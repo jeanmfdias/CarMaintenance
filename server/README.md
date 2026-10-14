@@ -57,6 +57,15 @@ docker run --rm -p 3001:3001 \
 The container runs migrations on start and persists `data/app.db` and uploads
 in `/app/data` (mount a named volume).
 
+The root `docker-compose.yml` also starts MailHog for local email capture.
+Magic-link emails sent by the backend appear at http://localhost:8025.
+
+For Compose, set `PUBLIC_APP_URL=http://localhost:8080` in `server/.env`
+and include `http://localhost:8080` in `CORS_ORIGIN`. If you change the proxy
+port or hostname, use the corresponding frontend URL in both settings.
+After changing `server/.env`, run `docker compose up -d --force-recreate backend`
+from the repository root to load the updated environment.
+
 ## Reverse proxy expectations
 
 The frontend is served via nginx (see `infra/nginx.conf` at the repo root). Run

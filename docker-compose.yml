@@ -37,6 +37,10 @@ services:
       PORT: "3001"
       DATABASE_PATH: /app/data/app.db
       UPLOADS_DIR: /app/data/uploads
+      SMTP_HOST: mailhog
+      SMTP_PORT: "1025"
+      SMTP_USER: ""
+      SMTP_PASS: ""
       # Exactly one trusted hop: the `proxy` nginx in front of the backend.
       # This makes req.ip the real client IP (correct per-IP rate limiting)
       # without trusting client-supplied X-Forwarded-For beyond that hop.
@@ -44,6 +48,8 @@ services:
       TRUST_PROXY: "1"
     volumes:
       - ./server/data:/app/data
+    depends_on:
+      - mailhog
     expose:
       - "3001"
     healthcheck:
@@ -52,6 +58,14 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+
+  mailhog:
+    image: mailhog/mailhog:v1.0.1
+    container_name: carm_mailhog
+    restart: unless-stopped
+    ports:
+      - "${MAILHOG_SMTP_PORT:-1025}:1025"
+      - "${MAILHOG_UI_PORT:-8025}:8025"
 
   proxy:
     image: nginx:stable-alpine
